@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>C1. Inventário Centralizado — Protótipos</title>
+<style>
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #f5f5f5;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 8px;
+    padding: 40px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  h1 {
+    color: #333;
+    margin-top: 0;
+  }
+  .subtitle {
+    color: #666;
+    margin-bottom: 30px;
+  }
+  .prototype-list {
+    list-style: none;
+    padding: 0;
+  }
+  .prototype-list li {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f9f9f9;
+    border-left: 4px solid #5eead4;
+    border-radius: 4px;
+  }
+  .prototype-list a {
+    color: #5eead4;
+    text-decoration: none;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .prototype-list a:hover {
+    text-decoration: underline;
+  }
+  .description {
+    color: #666;
+    font-size: 14px;
+    margin-top: 8px;
+  }
+  .status {
+    display: inline-block;
+    padding: 4px 8px;
+    background: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 4px;
+    font-size: 12px;
+    margin-left: 10px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>C1. Inventário Centralizado de Certificados</h1>
+  <p class="subtitle">Protótipos e design do MVP</p>
+
+  <h2>Protótipos</h2>
+  <ul class="prototype-list">
+    <li>
+      <a href="prototypes/prototipo-clm-mvp.html" target="_blank">
+        📋 Protótipo completo do mTLS Control Plane (MVP)
+      </a>
+      <span class="status">Aprovado</span>
+      <p class="description">
+        Protótipo interativo mostrando as 6 telas principais:
+        <br>
+        1. Dashboard — heatmap de expiração e alertas (C3)
+        <br>
+        2. Inventário centralizado — lista, busca, filtros (C1)
+        <br>
+        3. Detalhe do certificado — metadados e ações (C1)
+        <br>
+        4. Emitir certificado — formulário (C4)
+        <br>
+        5. Audit Log — histórico de eventos (C5)
+        <br>
+        6. API & CLI — documentação (integração)
+      </p>
+    </li>
+  </ul>
+
+  <h2>Documentação Associada</h2>
+  <ul class="prototype-list">
+    <li>
+      <a href="../prd.md" target="_blank">📄 Product Requirements Document (PRD)</a>
+      <p class="description">Especificação completa do recurso com requisitos funcionais, scope e suposições.</p>
+    </li>
+    <li>
+      <a href="../acceptance-criteria.md" target="_blank">✅ Acceptance Criteria</a>
+      <p class="description">Cenários em formato Gherkin (BDD) mapeados às telas do protótipo.</p>
+    </li>
+  </ul>
+
+  <h2>Destaques do Protótipo</h2>
+  <ul style="color: #666; line-height: 1.8;">
+    <li><strong>Tela 02 — Inventário centralizado:</strong> Lista paginada de 2.847 certificados com busca por CN/SAN/serial/owner, filtros por expiração/ambiente/CA/owner, status visual (Crítico/Atenção/Válido) e navegação para detalhe.</li>
+    <li><strong>Tela 03 — Detalhe do certificado:</strong> Exibição completa de metadados (CN, SANs, issuer, serial, datas, algoritmo, fingerprint SHA256), tags customizáveis, informações operacionais (owner, app, ambiente), e ações (renovar, download, revogar).</li>
+    <li><strong>Requisitos não-funcionais:</strong> Suporta 10k+ certificados com paginação; filtro por "expira em &lt; 30 dias" retorna em &lt; 2 segundos.</li>
+  </ul>
+
+  <hr style="margin: 40px 0; border: none; border-top: 1px solid #eee;">
+  <p style="text-align: center; color: #999; font-size: 12px;">
+    Versão 1.0 — 2025-05-19 | Feature slug: c2
+  </p>
+</div>
+</body>
+</html>
