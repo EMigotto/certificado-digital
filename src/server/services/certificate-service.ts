@@ -1,13 +1,17 @@
 /**
- * Certificate service — CRUD, search, filter, pagination.
+ * Certificate service — CRUD, search, filter, pagination, and
+ * audit-aware update/delete operations.
  *
- * Covers ACs: 5–20, 22–23, 29–30, 35–37, 41, 43–45, 49–50.
+ * Covers ACs: 5–20, 22–23, 29–30, 33–37, 41, 43–45, 49–50.
  *
- * All queries are built dynamically with parameterised bindings
- * (no string concatenation) and leverage the indexes declared in
- * `db.ts` so that 10k+ row datasets return in < 2 s (AC 35-36).
+ * Standalone functions (updateCertificate, deleteCertificate) — used by
+ * import routes (certificates.ts) with audit-service integration (AC 33, 34).
+ *
+ * CertificateService class — used by CRUD routes (certificate-crud.ts) for
+ * list, search, filter, pagination, export, and download operations.
  */
 import type Database from 'better-sqlite3';
+import * as auditService from './audit-service.js';
 import {
   computeStatus,
   daysUntilExpiration,
@@ -16,11 +20,23 @@ import {
   type CertificateStatus,
 } from '../../models/certificate.js';
 
-/* ------------------------------------------------------------------ */
-/* Row / Response types                                                */
-/* ------------------------------------------------------------------ */
+/* ================================================================== */
+/* Shared types                                                        */
+/* ================================================================== */
 
-/** Raw row coming out of SQLite. */
+/** Fields that may be updated on a certificate (organisational / tags). */
+export interface CertificateUpdateFields {
+  owner?: string;
+  application?: string;
+  environment?: 'dev' | 'hml' | 'prd';
+  zone?: string;
+  caProvider?: string;
+  description?: string;
+  tags?: Record<string, string>;
+  customFields?: Record<string, unknown>;
+}
+
+/** Stored certificate row (as returned from SQLite). */
 export interface CertificateRow {
   id: string;
   common_name: string;
@@ -44,6 +60,148 @@ export interface CertificateRow {
   created_at: string;
   updated_at: string;
 }
+
+/* ================================================================== */
+/* Standalone functions (chunk 16 — audit-aware mutations)              */
+/* ================================================================== */
+
+/**
+ * Fetch a single certificate by ID.
+ * Returns `undefined` if not found.
+ */
+export function getCertificateById(
+  db: Database.Database,
+  id: string,
+): CertificateRow | undefined {
+  return db
+    .prepare('SELECT * FROM certificates WHERE id = ?')
+    .get(id) as CertificateRow | undefined;
+}
+
+/**
+ * Update organisational fields and/or tags on a certificate.
+ *
+ * Creates an audit entry of type UPDATE / SUCCESS with a JSON diff in
+ * `details` showing old and new values for each changed field.
+ */
+export function updateCertificate(
+  db: Database.Database,
+  id: string,
+  fields: CertificateUpdateFields,
+  actor: string = 'system',
+): CertificateRow | null {
+  const existing = getCertificateById(db, id);
+  if (!existing) return null;
+
+  const setClauses: string[] = [];
+  const params: unknown[] = [];
+  const diff: Record<string, { old: unknown; new: unknown }> = {};
+
+  if (fields.owner !== undefined && fields.owner !== existing.owner) {
+    setClauses.push('owner = ?');
+    params.push(fields.owner);
+    diff.owner = { old: existing.owner, new: fields.owner };
+  }
+
+  if (fields.application !== undefined && fields.application !== existing.application) {
+    setClauses.push('application = ?');
+    params.push(fields.application);
+    diff.application = { old: existing.application, new: fields.application };
+  }
+
+  if (fields.environment !== undefined && fields.environment !== existing.environment) {
+    setClauses.push('environment = ?');
+    params.push(fields.environment);
+    diff.environment = { old: existing.environment, new: fields.environment };
+  }
+
+  if (fields.zone !== undefined && fields.zone !== existing.zone) {
+    setClauses.push('zone = ?');
+    params.push(fields.zone);
+    diff.zone = { old: existing.zone, new: fields.zone };
+  }
+
+  if (fields.caProvider !== undefined && fields.caProvider !== existing.ca_provider) {
+    setClauses.push('ca_provider = ?');
+    params.push(fields.caProvider);
+    diff.caProvider = { old: existing.ca_provider, new: fields.caProvider };
+  }
+
+  if (fields.description !== undefined && fields.description !== existing.description) {
+    setClauses.push('description = ?');
+    params.push(fields.description);
+    diff.description = { old: existing.description, new: fields.description };
+  }
+
+  if (fields.tags !== undefined) {
+    const newTagsJson = JSON.stringify(fields.tags);
+    if (newTagsJson !== existing.tags) {
+      setClauses.push('tags = ?');
+      params.push(newTagsJson);
+      diff.tags = {
+        old: JSON.parse(existing.tags),
+        new: fields.tags,
+      };
+    }
+  }
+
+  if (fields.customFields !== undefined) {
+    const newCfJson = JSON.stringify(fields.customFields);
+    if (newCfJson !== existing.custom_fields) {
+      setClauses.push('custom_fields = ?');
+      params.push(newCfJson);
+      diff.customFields = {
+        old: JSON.parse(existing.custom_fields),
+        new: fields.customFields,
+      };
+    }
+  }
+
+  if (setClauses.length === 0) {
+    auditService.log(db, 'UPDATE', id, existing.common_name, actor, 'SUCCESS', { changes: {} });
+    return existing;
+  }
+
+  setClauses.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')");
+
+  const sql = `UPDATE certificates SET ${setClauses.join(', ')} WHERE id = ?`;
+  params.push(id);
+
+  const transaction = db.transaction(() => {
+    db.prepare(sql).run(...params);
+    auditService.log(db, 'UPDATE', id, existing.common_name, actor, 'SUCCESS', { changes: diff });
+  });
+
+  transaction();
+
+  return getCertificateById(db, id) ?? null;
+}
+
+/**
+ * Delete a certificate from the inventory.
+ * Creates an audit entry of type DELETE / SUCCESS.
+ */
+export function deleteCertificate(
+  db: Database.Database,
+  id: string,
+  actor: string = 'system',
+): boolean {
+  const existing = getCertificateById(db, id);
+  if (!existing) return false;
+
+  const transaction = db.transaction(() => {
+    db.prepare('DELETE FROM certificates WHERE id = ?').run(id);
+    auditService.log(db, 'DELETE', id, existing.common_name, actor, 'SUCCESS');
+  });
+
+  transaction();
+
+  return true;
+}
+
+/* ================================================================== */
+/* CertificateService class (chunk 15 — CRUD, search, pagination)      */
+/* ================================================================== */
 
 /** Enriched certificate returned by the API. */
 export interface CertificateDetail {
@@ -138,7 +296,6 @@ function rowToDetail(row: CertificateRow, now: Date = new Date()): CertificateDe
   const customFields: Record<string, unknown> = JSON.parse(row.custom_fields);
   const revoked = row.revoked === 1;
 
-  // Build a lightweight Certificate-compatible object for computeStatus
   const certLike = {
     id: row.id,
     commonName: row.common_name,
@@ -192,7 +349,7 @@ function rowToDetail(row: CertificateRow, now: Date = new Date()): CertificateDe
 }
 
 /* ------------------------------------------------------------------ */
-/* Service                                                             */
+/* Service class                                                       */
 /* ------------------------------------------------------------------ */
 
 export class CertificateService {
@@ -236,7 +393,6 @@ export class CertificateService {
     }
 
     // Expiration window filter (AC 10)
-    // Certs that expire WITHIN the next N days (and are NOT already expired)
     if (params.expires_before != null && params.expires_before > 0) {
       const futureDate = new Date(now.getTime() + params.expires_before * 86_400_000).toISOString();
       conditions.push('not_after > ? AND not_after <= ?');
@@ -435,7 +591,6 @@ export class CertificateService {
     const result = this.list({ ...params, page: 1, page_size: 100 }, now);
     const allItems = [...result.items];
 
-    // Fetch remaining pages
     let currentPage = 1;
     while (currentPage < result.totalPages) {
       currentPage++;

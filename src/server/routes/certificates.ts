@@ -1,36 +1,37 @@
 /**
- * Certificate import routes.
+ * Certificate routes.
  *
- * POST /api/v1/certificates/import/pem    — upload single PEM certificate
- * POST /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
- * POST /api/v1/certificates/import/csv    — bulk CSV import (AC 3, 4, 42, 46, 47)
+ * POST   /api/v1/certificates/import/pem    — upload single PEM certificate
+ * POST   /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
+ * POST   /api/v1/certificates/import/csv    — bulk CSV import
+ * PATCH  /api/v1/certificates/:id           — update org fields / tags (AC 33)
+ * DELETE /api/v1/certificates/:id           — delete certificate (AC 34)
  *
- * Covers AC 1, 2, 3, 4, 38, 39, 42, 46, 47, 48.
+ * Covers AC 1, 2, 3, 4, 33, 34, 38, 39, 42, 46, 47, 48.
  *
  * Pipeline (ADR §2.5):
  *   multer upload → read file → parse cert → validate metadata → persist → respond
- *
- * CSV pipeline (ADR §2.5):
- *   multer upload → validate file type → read CSV content → importCsv → respond
  */
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import multer from 'multer';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 
-import { uploadPem, uploadPkcs12 } from '../middleware/upload.js';
+import { uploadPem, uploadPkcs12, uploadCsv } from '../middleware/upload.js';
 import {
   parsePemCertificate,
   parsePkcs12Certificate,
   validateImportMetadata,
   persistCertificate,
-  validateCsvFilename,
-  importCsv,
-  createCsvCommitFn,
+  importCsvContent,
   type ImportMetadata,
 } from '../services/import-service.js';
+import {
+  updateCertificate,
+  deleteCertificate,
+  type CertificateUpdateFields,
+} from '../services/certificate-service.js';
 
 /* ------------------------------------------------------------------ */
 /* Router factory                                                      */
@@ -246,17 +247,11 @@ export function createCertificateRoutes(db: Database.Database): Router {
   /* ---------------------------------------------------------------- */
   /* POST /import/csv — bulk CSV import (AC 3, 4, 42, 46, 47)        */
   /* ---------------------------------------------------------------- */
-
-  // Use memory storage for CSV (text files, typically small)
-  const csvUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-  }).single('file');
-
   router.post(
     '/import/csv',
+    // Wrap multer to convert its errors into JSON responses (AC 46)
     (req: Request, res: Response, next: NextFunction) => {
-      csvUpload(req, res, (err) => {
+      uploadCsv(req, res, (err) => {
         if (err) {
           return res.status(400).json({
             error: { status: 400, message: err.message },
@@ -265,7 +260,7 @@ export function createCertificateRoutes(db: Database.Database): Router {
         next();
       });
     },
-    async (req: Request, res: Response) => {
+    (req: Request, res: Response) => {
       try {
         // --- 1. Ensure a file was provided ---
         if (!req.file) {
@@ -274,30 +269,42 @@ export function createCertificateRoutes(db: Database.Database): Router {
           });
         }
 
-        // --- 2. Validate file type (AC 46) ---
-        const fileError = validateCsvFilename(req.file.originalname);
-        if (fileError) {
+        // --- 2. Read file content ---
+        const csvContent = fs.readFileSync(req.file.path, 'utf-8');
+
+        // Clean up temp file immediately
+        fs.unlinkSync(req.file.path);
+
+        // --- 3. Import CSV with row-level validation ---
+        let result;
+        try {
+          result = importCsvContent(db, csvContent);
+        } catch (importErr) {
+          // AC 47: empty CSV or parse error
           return res.status(400).json({
-            error: { status: 400, message: fileError },
+            error: {
+              status: 400,
+              message:
+                importErr instanceof Error
+                  ? importErr.message
+                  : 'Failed to process CSV file',
+            },
           });
         }
 
-        // --- 3. Read CSV content from memory buffer ---
-        const csvContent = req.file.buffer.toString('utf-8');
-
-        // --- 4. Import with row-level validation and partial commit ---
-        const commitFn = createCsvCommitFn(db);
-        const result = await importCsv(csvContent, commitFn);
-
-        // --- 5. Determine response status ---
-        // If nothing was imported and there are errors, it's a client error
-        if (result.imported === 0 && result.errors.length > 0) {
-          return res.status(400).json(result);
-        }
-
-        // Partial success (some imported, some failed) or full success
-        return res.status(200).json(result);
+        // --- 4. Return the import result ---
+        // Use 200 even for partial success (some rows imported, some failed)
+        const status = result.imported > 0 ? 200 : 400;
+        return res.status(status).json(result);
       } catch (err) {
+        // Clean up temp file on unexpected error
+        if (req.file?.path) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
         return res.status(500).json({
           error: {
             status: 500,
@@ -308,6 +315,77 @@ export function createCertificateRoutes(db: Database.Database): Router {
       }
     },
   );
+
+  /* ---------------------------------------------------------------- */
+  /* PATCH /:id — update org fields / tags (AC 33)                    */
+  /* ---------------------------------------------------------------- */
+  router.patch('/:id', (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const fields: CertificateUpdateFields = {};
+
+      if (req.body.owner !== undefined) fields.owner = String(req.body.owner);
+      if (req.body.application !== undefined) fields.application = String(req.body.application);
+      if (req.body.environment !== undefined) {
+        const env = String(req.body.environment);
+        if (!['dev', 'hml', 'prd'].includes(env)) {
+          return res.status(400).json({
+            error: { status: 400, message: 'Environment must be dev, hml, or prd' },
+          });
+        }
+        fields.environment = env as 'dev' | 'hml' | 'prd';
+      }
+      if (req.body.zone !== undefined) fields.zone = String(req.body.zone);
+      if (req.body.caProvider !== undefined) fields.caProvider = String(req.body.caProvider);
+      if (req.body.description !== undefined) fields.description = String(req.body.description);
+      if (req.body.tags !== undefined) fields.tags = req.body.tags;
+      if (req.body.customFields !== undefined) fields.customFields = req.body.customFields;
+
+      const actor = (req.headers['x-actor'] as string) ?? 'system';
+      const updated = updateCertificate(db, id, fields, actor);
+
+      if (!updated) {
+        return res.status(404).json({
+          error: { status: 404, message: 'Certificate not found' },
+        });
+      }
+
+      return res.json(updated);
+    } catch (err) {
+      return res.status(500).json({
+        error: {
+          status: 500,
+          message: err instanceof Error ? err.message : 'Internal server error',
+        },
+      });
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* DELETE /:id — delete certificate (AC 34)                         */
+  /* ---------------------------------------------------------------- */
+  router.delete('/:id', (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const actor = (req.headers['x-actor'] as string) ?? 'system';
+      const deleted = deleteCertificate(db, id, actor);
+
+      if (!deleted) {
+        return res.status(404).json({
+          error: { status: 404, message: 'Certificate not found' },
+        });
+      }
+
+      return res.status(204).send();
+    } catch (err) {
+      return res.status(500).json({
+        error: {
+          status: 500,
+          message: err instanceof Error ? err.message : 'Internal server error',
+        },
+      });
+    }
+  });
 
   return router;
 }

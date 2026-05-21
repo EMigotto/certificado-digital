@@ -1,16 +1,17 @@
 /**
- * Certificate REST API routes.
+ * Certificate REST API routes — read-only CRUD & export.
+ *
+ * PATCH and DELETE routes live in certificates.ts (with audit-service
+ * integration from chunk 16).
  *
  * Endpoints (ADR §2.3):
  *   GET    /api/v1/certificates              — list + search + filter + paginate
  *   GET    /api/v1/certificates/export       — CSV / JSON download
  *   GET    /api/v1/certificates/:id          — detail
- *   PATCH  /api/v1/certificates/:id          — update org fields / tags
- *   DELETE /api/v1/certificates/:id          — delete
  *   GET    /api/v1/certificates/:id/download — PEM file download
  */
 import { Router, type Request, type Response } from 'express';
-import { CertificateService, type ListParams, type UpdatePayload } from '../services/certificate-service.js';
+import { CertificateService, type ListParams } from '../services/certificate-service.js';
 import { ExportService } from '../services/export-service.js';
 import type Database from 'better-sqlite3';
 
@@ -74,56 +75,6 @@ export function createCertificateRouter(db: Database.Database): Router {
       return res.json(cert);
     } catch (err) {
       return res.status(500).json({ error: 'Failed to retrieve certificate', detail: String(err) });
-    }
-  });
-
-  /* ================================================================ */
-  /* PATCH /certificates/:id — update org fields / tags (AC 29, 43)    */
-  /* ================================================================ */
-  router.patch('/:id', (req: Request, res: Response) => {
-    try {
-      const payload: UpdatePayload = {};
-
-      // Only allow org fields (AC 43 — PKI fields read-only)
-      if (req.body.owner !== undefined) payload.owner = req.body.owner;
-      if (req.body.application !== undefined) payload.application = req.body.application;
-      if (req.body.environment !== undefined) payload.environment = req.body.environment;
-      if (req.body.zone !== undefined) payload.zone = req.body.zone;
-      if (req.body.ca_provider !== undefined) payload.ca_provider = req.body.ca_provider;
-      if (req.body.tags !== undefined) payload.tags = req.body.tags;
-      if (req.body.custom_fields !== undefined) payload.custom_fields = req.body.custom_fields;
-      if (req.body.description !== undefined) payload.description = req.body.description;
-
-      const actor = String(req.headers['x-actor'] ?? 'system');
-      const updated = certService.update(String(req.params.id), payload, actor);
-
-      if (!updated) {
-        return res.status(404).json({ error: 'Certificate not found' });
-      }
-      return res.json(updated);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('Environment must be')) {
-        return res.status(400).json({ error: message });
-      }
-      return res.status(500).json({ error: 'Failed to update certificate', detail: message });
-    }
-  });
-
-  /* ================================================================ */
-  /* DELETE /certificates/:id — delete + audit (AC 23)                 */
-  /* ================================================================ */
-  router.delete('/:id', (req: Request, res: Response) => {
-    try {
-      const actor = String(req.headers['x-actor'] ?? 'system');
-      const deleted = certService.delete(String(req.params.id), actor);
-
-      if (!deleted) {
-        return res.status(404).json({ error: 'Certificate not found' });
-      }
-      return res.status(200).json({ message: 'Certificate deleted' });
-    } catch (err) {
-      return res.status(500).json({ error: 'Failed to delete certificate', detail: String(err) });
     }
   });
 

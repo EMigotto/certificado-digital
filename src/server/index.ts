@@ -18,6 +18,7 @@ import { initDatabase, closeDatabase } from './db.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { createCertificateRoutes } from './routes/certificates.js';
 import { createCertificateRouter } from './routes/certificate-crud.js';
+import { createAuditRoutes, createCertificateAuditRoutes } from './routes/audit.js';
 
 /* ------------------------------------------------------------------ */
 /* App factory (testable)                                              */
@@ -59,6 +60,9 @@ export function createApp(db: ReturnType<typeof initDatabase>) {
   app.use('/api/v1/certificates', createCertificateRoutes(db));
   // CRUD routes: GET /, GET /:id, PATCH /:id, DELETE /:id, GET /export, GET /:id/download
   app.use('/api/v1/certificates', createCertificateRouter(db));
+  // Audit routes: GET /api/v1/audit, GET /api/v1/certificates/:id/audit
+  app.use('/api/v1/audit', createAuditRoutes(db));
+  app.use('/api/v1/certificates', createCertificateAuditRoutes(db));
 
   // --- Error handling (must be last) ---
   app.use(errorHandler);
