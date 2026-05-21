@@ -3,8 +3,9 @@
  *
  * POST /api/v1/certificates/import/pem    — upload single PEM certificate
  * POST /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
+ * POST /api/v1/certificates/import/csv    — bulk CSV import
  *
- * Covers AC 1, 2, 38, 39, 46, 48.
+ * Covers AC 1, 2, 3, 4, 38, 39, 42, 46, 47, 48.
  *
  * Pipeline (ADR §2.5):
  *   multer upload → read file → parse cert → validate metadata → persist → respond
@@ -15,12 +16,13 @@ import type { Request, Response, NextFunction } from 'express';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 
-import { uploadPem, uploadPkcs12 } from '../middleware/upload.js';
+import { uploadPem, uploadPkcs12, uploadCsv } from '../middleware/upload.js';
 import {
   parsePemCertificate,
   parsePkcs12Certificate,
   validateImportMetadata,
   persistCertificate,
+  importCsvContent,
   type ImportMetadata,
 } from '../services/import-service.js';
 
@@ -217,6 +219,78 @@ export function createCertificateRoutes(db: Database.Database): Router {
 
         return res.status(201).json(imported);
       } catch (err) {
+        if (req.file?.path) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch {
+            /* ignore cleanup errors */
+          }
+        }
+        return res.status(500).json({
+          error: {
+            status: 500,
+            message:
+              err instanceof Error ? err.message : 'Internal server error',
+          },
+        });
+      }
+    },
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* POST /import/csv — bulk CSV import (AC 3, 4, 42, 46, 47)        */
+  /* ---------------------------------------------------------------- */
+  router.post(
+    '/import/csv',
+    // Wrap multer to convert its errors into JSON responses (AC 46)
+    (req: Request, res: Response, next: NextFunction) => {
+      uploadCsv(req, res, (err) => {
+        if (err) {
+          return res.status(400).json({
+            error: { status: 400, message: err.message },
+          });
+        }
+        next();
+      });
+    },
+    (req: Request, res: Response) => {
+      try {
+        // --- 1. Ensure a file was provided ---
+        if (!req.file) {
+          return res.status(400).json({
+            error: { status: 400, message: 'No file uploaded' },
+          });
+        }
+
+        // --- 2. Read file content ---
+        const csvContent = fs.readFileSync(req.file.path, 'utf-8');
+
+        // Clean up temp file immediately
+        fs.unlinkSync(req.file.path);
+
+        // --- 3. Import CSV with row-level validation ---
+        let result;
+        try {
+          result = importCsvContent(db, csvContent);
+        } catch (importErr) {
+          // AC 47: empty CSV or parse error
+          return res.status(400).json({
+            error: {
+              status: 400,
+              message:
+                importErr instanceof Error
+                  ? importErr.message
+                  : 'Failed to process CSV file',
+            },
+          });
+        }
+
+        // --- 4. Return the import result ---
+        // Use 200 even for partial success (some rows imported, some failed)
+        const status = result.imported > 0 ? 200 : 400;
+        return res.status(status).json(result);
+      } catch (err) {
+        // Clean up temp file on unexpected error
         if (req.file?.path) {
           try {
             fs.unlinkSync(req.file.path);
