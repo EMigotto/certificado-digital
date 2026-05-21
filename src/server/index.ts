@@ -16,6 +16,7 @@ import cors from 'cors';
 import path from 'node:path';
 import { initDatabase, closeDatabase } from './db.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { createCertificateRoutes } from './routes/certificates.js';
 
 /* ------------------------------------------------------------------ */
 /* App factory (testable)                                              */
@@ -51,6 +52,9 @@ export function createApp(db: ReturnType<typeof initDatabase>) {
       });
     }
   });
+
+  // --- API Routes ---
+  app.use('/api/v1/certificates', createCertificateRoutes(db));
 
   // --- Error handling (must be last) ---
   app.use(errorHandler);
