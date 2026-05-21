@@ -3,15 +3,20 @@
  *
  * POST /api/v1/certificates/import/pem    — upload single PEM certificate
  * POST /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
+ * POST /api/v1/certificates/import/csv    — bulk CSV import (AC 3, 4, 42, 46, 47)
  *
- * Covers AC 1, 2, 38, 39, 46, 48.
+ * Covers AC 1, 2, 3, 4, 38, 39, 42, 46, 47, 48.
  *
  * Pipeline (ADR §2.5):
  *   multer upload → read file → parse cert → validate metadata → persist → respond
+ *
+ * CSV pipeline (ADR §2.5):
+ *   multer upload → validate file type → read CSV content → importCsv → respond
  */
 
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 
@@ -21,6 +26,9 @@ import {
   parsePkcs12Certificate,
   validateImportMetadata,
   persistCertificate,
+  validateCsvFilename,
+  importCsv,
+  createCsvCommitFn,
   type ImportMetadata,
 } from '../services/import-service.js';
 
@@ -224,6 +232,72 @@ export function createCertificateRoutes(db: Database.Database): Router {
             /* ignore cleanup errors */
           }
         }
+        return res.status(500).json({
+          error: {
+            status: 500,
+            message:
+              err instanceof Error ? err.message : 'Internal server error',
+          },
+        });
+      }
+    },
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* POST /import/csv — bulk CSV import (AC 3, 4, 42, 46, 47)        */
+  /* ---------------------------------------------------------------- */
+
+  // Use memory storage for CSV (text files, typically small)
+  const csvUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  }).single('file');
+
+  router.post(
+    '/import/csv',
+    (req: Request, res: Response, next: NextFunction) => {
+      csvUpload(req, res, (err) => {
+        if (err) {
+          return res.status(400).json({
+            error: { status: 400, message: err.message },
+          });
+        }
+        next();
+      });
+    },
+    async (req: Request, res: Response) => {
+      try {
+        // --- 1. Ensure a file was provided ---
+        if (!req.file) {
+          return res.status(400).json({
+            error: { status: 400, message: 'No file uploaded' },
+          });
+        }
+
+        // --- 2. Validate file type (AC 46) ---
+        const fileError = validateCsvFilename(req.file.originalname);
+        if (fileError) {
+          return res.status(400).json({
+            error: { status: 400, message: fileError },
+          });
+        }
+
+        // --- 3. Read CSV content from memory buffer ---
+        const csvContent = req.file.buffer.toString('utf-8');
+
+        // --- 4. Import with row-level validation and partial commit ---
+        const commitFn = createCsvCommitFn(db);
+        const result = await importCsv(csvContent, commitFn);
+
+        // --- 5. Determine response status ---
+        // If nothing was imported and there are errors, it's a client error
+        if (result.imported === 0 && result.errors.length > 0) {
+          return res.status(400).json(result);
+        }
+
+        // Partial success (some imported, some failed) or full success
+        return res.status(200).json(result);
+      } catch (err) {
         return res.status(500).json({
           error: {
             status: 500,
