@@ -1,11 +1,13 @@
 /**
- * Certificate import routes.
+ * Certificate routes.
  *
- * POST /api/v1/certificates/import/pem    — upload single PEM certificate
- * POST /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
- * POST /api/v1/certificates/import/csv    — bulk CSV import
+ * POST   /api/v1/certificates/import/pem    — upload single PEM certificate
+ * POST   /api/v1/certificates/import/pkcs12 — upload single PKCS#12 certificate
+ * POST   /api/v1/certificates/import/csv    — bulk CSV import
+ * PATCH  /api/v1/certificates/:id           — update org fields / tags (AC 33)
+ * DELETE /api/v1/certificates/:id           — delete certificate (AC 34)
  *
- * Covers AC 1, 2, 3, 4, 38, 39, 42, 46, 47, 48.
+ * Covers AC 1, 2, 3, 4, 33, 34, 38, 39, 42, 46, 47, 48.
  *
  * Pipeline (ADR §2.5):
  *   multer upload → read file → parse cert → validate metadata → persist → respond
@@ -25,6 +27,11 @@ import {
   importCsvContent,
   type ImportMetadata,
 } from '../services/import-service.js';
+import {
+  updateCertificate,
+  deleteCertificate,
+  type CertificateUpdateFields,
+} from '../services/certificate-service.js';
 
 /* ------------------------------------------------------------------ */
 /* Router factory                                                      */
@@ -308,6 +315,77 @@ export function createCertificateRoutes(db: Database.Database): Router {
       }
     },
   );
+
+  /* ---------------------------------------------------------------- */
+  /* PATCH /:id — update org fields / tags (AC 33)                    */
+  /* ---------------------------------------------------------------- */
+  router.patch('/:id', (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const fields: CertificateUpdateFields = {};
+
+      if (req.body.owner !== undefined) fields.owner = String(req.body.owner);
+      if (req.body.application !== undefined) fields.application = String(req.body.application);
+      if (req.body.environment !== undefined) {
+        const env = String(req.body.environment);
+        if (!['dev', 'hml', 'prd'].includes(env)) {
+          return res.status(400).json({
+            error: { status: 400, message: 'Environment must be dev, hml, or prd' },
+          });
+        }
+        fields.environment = env as 'dev' | 'hml' | 'prd';
+      }
+      if (req.body.zone !== undefined) fields.zone = String(req.body.zone);
+      if (req.body.caProvider !== undefined) fields.caProvider = String(req.body.caProvider);
+      if (req.body.description !== undefined) fields.description = String(req.body.description);
+      if (req.body.tags !== undefined) fields.tags = req.body.tags;
+      if (req.body.customFields !== undefined) fields.customFields = req.body.customFields;
+
+      const actor = (req.headers['x-actor'] as string) ?? 'system';
+      const updated = updateCertificate(db, id, fields, actor);
+
+      if (!updated) {
+        return res.status(404).json({
+          error: { status: 404, message: 'Certificate not found' },
+        });
+      }
+
+      return res.json(updated);
+    } catch (err) {
+      return res.status(500).json({
+        error: {
+          status: 500,
+          message: err instanceof Error ? err.message : 'Internal server error',
+        },
+      });
+    }
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* DELETE /:id — delete certificate (AC 34)                         */
+  /* ---------------------------------------------------------------- */
+  router.delete('/:id', (req: Request, res: Response) => {
+    try {
+      const id = String(req.params.id);
+      const actor = (req.headers['x-actor'] as string) ?? 'system';
+      const deleted = deleteCertificate(db, id, actor);
+
+      if (!deleted) {
+        return res.status(404).json({
+          error: { status: 404, message: 'Certificate not found' },
+        });
+      }
+
+      return res.status(204).send();
+    } catch (err) {
+      return res.status(500).json({
+        error: {
+          status: 500,
+          message: err instanceof Error ? err.message : 'Internal server error',
+        },
+      });
+    }
+  });
 
   return router;
 }

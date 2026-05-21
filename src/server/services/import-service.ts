@@ -18,6 +18,7 @@ import forge from 'node-forge';
 import { v4 as uuidv4 } from 'uuid';
 import type Database from 'better-sqlite3';
 import { parse as csvParse } from 'csv-parse/sync';
+import * as auditService from './audit-service.js';
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -264,14 +265,9 @@ const INSERT_CERT_SQL = `
   )
 `;
 
-const INSERT_AUDIT_SQL = `
-  INSERT INTO audit_log (id, cert_id, cert_cn, action, actor, result, details)
-  VALUES (?, ?, ?, 'CREATE', 'system', 'SUCCESS', '{}')
-`;
-
 /**
  * Persist a parsed certificate + metadata into the database and create
- * the corresponding audit log entry.
+ * the corresponding CREATE audit log entry via audit-service.
  *
  * Returns the full imported certificate record.
  */
@@ -284,7 +280,6 @@ export function persistCertificate(
   const now = new Date().toISOString();
 
   const insertCert = db.prepare(INSERT_CERT_SQL);
-  const insertAudit = db.prepare(INSERT_AUDIT_SQL);
 
   const transaction = db.transaction(() => {
     insertCert.run(
@@ -307,7 +302,7 @@ export function persistCertificate(
       (meta.description ?? '').trim(),
     );
 
-    insertAudit.run(uuidv4(), id, parsed.commonName);
+    auditService.log(db, 'CREATE', id, parsed.commonName, 'system', 'SUCCESS');
   });
 
   transaction();
@@ -423,7 +418,6 @@ export function persistCsvRow(
   const serial = id.replace(/-/g, '').toUpperCase();
 
   const insertCert = db.prepare(INSERT_CERT_SQL);
-  const insertAudit = db.prepare(INSERT_AUDIT_SQL);
 
   const transaction = db.transaction(() => {
     insertCert.run(
@@ -446,7 +440,7 @@ export function persistCsvRow(
       '',                 // description
     );
 
-    insertAudit.run(uuidv4(), id, cn);
+    auditService.log(db, 'CREATE', id, cn, 'system', 'SUCCESS');
   });
 
   transaction();
