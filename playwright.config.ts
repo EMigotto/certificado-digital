@@ -19,10 +19,17 @@ export default defineConfig({
       },
     },
   ],
-  /* Serve the prototype locally for tests */
-  webServer: {
-    command: 'npx serve docs/features/c2/prototypes -l 3199 --no-clipboard',
-    port: 3199,
-    reuseExistingServer: !process.env.CI,
-  },
+  /* Serve both the prototype (port 3199) and built SPA (port 3200) */
+  webServer: [
+    {
+      command: 'npx serve docs/features/c3/prototypes -l 3199 --no-clipboard',
+      port: 3199,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run build:frontend && npx serve dist/public -l 3200 --no-clipboard',
+      port: 3200,
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });
