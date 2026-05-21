@@ -105,3 +105,13 @@ export function initDatabase(dbPath: string = DEFAULT_DB_PATH): Database.Databas
 export function closeDatabase(db: Database.Database): void {
   db.close();
 }
+
+/**
+ * Alias for `initDatabase` — used by chunk 15 services & tests.
+ * Defaults to in-memory database when no path is supplied.
+ */
+export function createDatabase(dbPath: string = ':memory:'): Database.Database {
+  return initDatabase(dbPath);
+}
+
+export type { Database };
