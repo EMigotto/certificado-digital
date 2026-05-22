@@ -4,7 +4,8 @@
  * Auto-creates the SQLite file at `data/inventory.db` (or a custom path)
  * and runs the schema migration for `certificates` + `audit_log` tables.
  *
- * See ADR §2.2 for the full schema specification.
+ * Uses SQLite via better-sqlite3 — zero-ops, single-file,
+ * handles 10k+ rows with indexes (ADR §2.2).
  */
 
 import Database from 'better-sqlite3';
@@ -41,24 +42,24 @@ CREATE TABLE IF NOT EXISTS certificates (
   updated_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
--- Performance indexes (D1: <2 s for 10 k+ rows)
-CREATE INDEX IF NOT EXISTS idx_cert_owner    ON certificates(owner);
-CREATE INDEX IF NOT EXISTS idx_cert_env      ON certificates(environment);
+-- Performance indexes (ADR D1: <2s for 10k+ rows)
+CREATE INDEX IF NOT EXISTS idx_cert_owner     ON certificates(owner);
+CREATE INDEX IF NOT EXISTS idx_cert_env       ON certificates(environment);
 CREATE INDEX IF NOT EXISTS idx_cert_not_after ON certificates(not_after);
-CREATE INDEX IF NOT EXISTS idx_cert_cn       ON certificates(common_name COLLATE NOCASE);
-CREATE INDEX IF NOT EXISTS idx_cert_serial   ON certificates(serial);
-CREATE INDEX IF NOT EXISTS idx_cert_ca       ON certificates(ca_provider);
+CREATE INDEX IF NOT EXISTS idx_cert_cn        ON certificates(common_name COLLATE NOCASE);
+CREATE INDEX IF NOT EXISTS idx_cert_serial    ON certificates(serial);
+CREATE INDEX IF NOT EXISTS idx_cert_ca        ON certificates(ca_provider);
 
 -- Audit log
 CREATE TABLE IF NOT EXISTS audit_log (
-  id        TEXT PRIMARY KEY,
-  cert_id   TEXT,
-  cert_cn   TEXT NOT NULL,
-  action    TEXT NOT NULL CHECK(action IN ('CREATE','UPDATE','DELETE','REVOKE')),
-  actor     TEXT NOT NULL DEFAULT 'system',
-  result    TEXT NOT NULL CHECK(result IN ('SUCCESS','FAILURE')),
-  details   TEXT NOT NULL DEFAULT '{}',
-  timestamp TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  id         TEXT PRIMARY KEY,
+  cert_id    TEXT,
+  cert_cn    TEXT NOT NULL,
+  action     TEXT NOT NULL CHECK(action IN ('CREATE','UPDATE','DELETE','REVOKE')),
+  actor      TEXT NOT NULL DEFAULT 'system',
+  result     TEXT NOT NULL CHECK(result IN ('SUCCESS','FAILURE')),
+  details    TEXT NOT NULL DEFAULT '{}',
+  timestamp  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_cert   ON audit_log(cert_id);
@@ -100,8 +101,20 @@ export function initDatabase(dbPath: string = DEFAULT_DB_PATH): Database.Databas
 }
 
 /**
+ * Alias for initDatabase — used by certificate-service and export-service.
+ * Defaults to `:memory:` for convenience in tests.
+ *
+ * @param dbPath  File path or `':memory:'` for an in-memory DB.
+ */
+export function createDatabase(dbPath: string = ':memory:'): Database.Database {
+  return initDatabase(dbPath);
+}
+
+/**
  * Close the database gracefully.
  */
 export function closeDatabase(db: Database.Database): void {
   db.close();
 }
+
+export type { Database };
