@@ -1,15 +1,23 @@
 /**
- * Certificate import service — PEM & PKCS#12 parsing, validation, persistence.
+ * Certificate import service — PEM, PKCS#12, and CSV bulk parsing,
+ * validation, and persistence.
  *
  * Covers AC 1 (import single PEM), AC 2 (invalid format error),
- * AC 38 (owner required), AC 39 (valid environment), AC 48 (metadata accuracy).
+ * AC 3 (CSV bulk import), AC 4 (CSV validation errors),
+ * AC 38 (owner required), AC 39 (valid environment), AC 42 (stop-on-error),
+ * AC 46 (CSV file type validation), AC 47 (empty CSV), AC 48 (metadata accuracy).
  *
  * Pipeline (ADR §2.5):
  *   upload → parse → validate org-metadata → persist → audit → return JSON
+ *
+ * CSV pipeline (ADR §2.5):
+ *   upload → csv-parse stream → validate each row → commit valid rows
+ *   sequentially → stop on first invalid → return ImportResult
  */
 
 import forge from 'node-forge';
 import { v4 as uuidv4 } from 'uuid';
+import { parse as csvParse } from 'csv-parse';
 import type Database from 'better-sqlite3';
 
 /* ------------------------------------------------------------------ */
@@ -316,5 +324,326 @@ export function persistCertificate(
     description: (meta.description ?? '').trim(),
     tags: meta.tags ?? {},
     createdAt: now,
+  };
+}
+
+/* ================================================================== */
+/* CSV Bulk Import — AC 3, 4, 42, 46, 47                              */
+/* ================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* CSV Types                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Error for a specific row in a CSV import. */
+export interface CsvRowError {
+  row: number;
+  field: string;
+  message: string;
+}
+
+/** Result of a CSV bulk import operation. */
+export interface CsvImportResult {
+  imported: number;
+  failed: number;
+  errors: CsvRowError[];
+}
+
+/** Certificate data parsed from a single CSV row. */
+export interface ParsedCsvCertificate {
+  commonName: string;
+  sans: string[];
+  owner: string;
+  application: string;
+  environment: string;
+  ca: string;
+  zone: string;
+  tags: Record<string, string>;
+}
+
+/**
+ * Callback invoked for each valid CSV row during import.
+ * Implementations should persist the row (e.g. insert into database).
+ */
+export type CsvCommitRowFn = (row: ParsedCsvCertificate, rowNumber: number) => void;
+
+/* ------------------------------------------------------------------ */
+/* CSV file validation (AC 46)                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Validate that the uploaded file is a CSV file.
+ * Returns an error message string if invalid, or `null` if valid.
+ *
+ * AC 46: Non-CSV file → error "Only CSV files are supported"
+ */
+export function validateCsvFilename(filename: string): string | null {
+  const ext = filename.toLowerCase().split('.').pop();
+  if (ext !== 'csv') {
+    return 'Only CSV files are supported';
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* CSV row validation                                                  */
+/* ------------------------------------------------------------------ */
+
+const CSV_REQUIRED_FIELDS = ['cn', 'owner', 'application', 'environment'] as const;
+
+/**
+ * Validate a single CSV row for required fields and enum constraints.
+ *
+ * Required fields: cn, owner, application, environment
+ * Environment must be one of: dev, hml, prd
+ *
+ * @param record  Raw key-value record parsed from CSV.
+ * @param rowNum  1-based row number (for error reporting).
+ * @returns Array of errors (empty if valid).
+ */
+export function validateCsvRow(
+  record: Record<string, string>,
+  rowNum: number,
+): CsvRowError[] {
+  const errors: CsvRowError[] = [];
+
+  for (const field of CSV_REQUIRED_FIELDS) {
+    if (!record[field]?.trim()) {
+      errors.push({
+        row: rowNum,
+        field,
+        message: `${field} is required`,
+      });
+    }
+  }
+
+  // Environment enum constraint (only check if field is present)
+  const env = record.environment?.trim();
+  if (env && !VALID_ENVIRONMENTS.includes(env)) {
+    errors.push({
+      row: rowNum,
+      field: 'environment',
+      message: 'Environment must be dev, hml, or prd',
+    });
+  }
+
+  return errors;
+}
+
+/* ------------------------------------------------------------------ */
+/* CSV record → structured certificate data                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse a raw CSV record into a structured `ParsedCsvCertificate`.
+ * Tag columns are identified by the `tag_` prefix.
+ */
+export function parseCsvRecord(
+  record: Record<string, string>,
+): ParsedCsvCertificate {
+  const tags: Record<string, string> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key.startsWith('tag_') && value?.trim()) {
+      tags[key.slice(4)] = value.trim();
+    }
+  }
+
+  return {
+    commonName: record.cn?.trim() ?? '',
+    sans: record.san?.trim()
+      ? record.san.split(',').map((s) => s.trim()).filter(Boolean)
+      : [],
+    owner: record.owner?.trim() ?? '',
+    application: record.application?.trim() ?? '',
+    environment: record.environment?.trim() ?? '',
+    ca: record.ca?.trim() ?? '',
+    zone: record.zone?.trim() ?? '',
+    tags,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* CSV content parsing (streaming via csv-parse)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Parse CSV content string into an array of records using csv-parse.
+ * Uses the streaming callback API internally (ADR §2.5).
+ *
+ * @param content  Raw CSV string (including header row).
+ * @returns Promise resolving to array of key-value records.
+ */
+export function parseCsvContent(
+  content: string,
+): Promise<Record<string, string>[]> {
+  return new Promise((resolve, reject) => {
+    csvParse(
+      content,
+      {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_column_count: true,
+      },
+      (err, records: Record<string, string>[]) => {
+        if (err) reject(err);
+        else resolve(records ?? []);
+      },
+    );
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* Main CSV import function                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Import certificates from CSV content with row-level validation and
+ * partial-commit (stop-on-error) semantics.
+ *
+ * **Behaviour (ADR §2.5, AC 42):**
+ *  1. Parse CSV into records.
+ *  2. Process rows sequentially (1 → N).
+ *  3. For each row: validate → if valid, commit; if invalid, record error.
+ *  4. On first invalid row, STOP committing — all subsequent rows are skipped.
+ *  5. After stopping, continue scanning remaining rows to report their
+ *     individual validation errors (if any).
+ *  6. Return result with imported count, failed count, and all errors.
+ *
+ * This gives the caller a full picture of ALL validation issues
+ * while guaranteeing only rows before the first error are committed.
+ *
+ * @param content     Raw CSV string content (with header row).
+ * @param commitRow   Optional callback to persist each valid row.
+ *                    If not provided, rows are validated but not persisted.
+ * @returns           Import result with counts and error details.
+ *
+ * @example
+ * ```ts
+ * const result = await importCsv(csvContent, (row, rowNum) => {
+ *   db.prepare('INSERT INTO ...').run(...);
+ * });
+ * // result.imported → number of committed rows
+ * // result.failed   → number of uncommitted rows
+ * // result.errors   → validation errors with row numbers
+ * ```
+ */
+export async function importCsv(
+  content: string,
+  commitRow?: CsvCommitRowFn,
+): Promise<CsvImportResult> {
+  // --- Step 1: Parse CSV ---
+  let records: Record<string, string>[];
+  try {
+    records = await parseCsvContent(content);
+  } catch {
+    return {
+      imported: 0,
+      failed: 0,
+      errors: [{ row: 0, field: '', message: 'Invalid CSV format' }],
+    };
+  }
+
+  // AC 47: Empty CSV → error
+  if (records.length === 0) {
+    return {
+      imported: 0,
+      failed: 0,
+      errors: [{ row: 0, field: '', message: 'No valid rows found in file' }],
+    };
+  }
+
+  // --- Step 2-5: Process rows with stop-on-error ---
+  let imported = 0;
+  let stopped = false;
+  const errors: CsvRowError[] = [];
+
+  for (let i = 0; i < records.length; i++) {
+    const rowNum = i + 1;
+    const rowErrors = validateCsvRow(records[i], rowNum);
+
+    if (rowErrors.length > 0) {
+      // Record validation errors for this row
+      errors.push(...rowErrors);
+      // Enter "stopped" mode — no more commits
+      if (!stopped) {
+        stopped = true;
+      }
+      continue;
+    }
+
+    if (!stopped) {
+      // Valid row and still in commit mode → commit it
+      const parsed = parseCsvRecord(records[i]);
+      if (commitRow) {
+        commitRow(parsed, rowNum);
+      }
+      imported++;
+    }
+    // If stopped and row is valid → silently skip (not committed, no error)
+  }
+
+  // --- Step 6: Return result ---
+  return {
+    imported,
+    failed: records.length - imported,
+    errors,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* CSV row persistence helper                                          */
+/* ------------------------------------------------------------------ */
+
+const INSERT_CSV_CERT_SQL = `
+  INSERT INTO certificates (
+    id, common_name, sans, serial, issuer,
+    not_before, not_after, algorithm, fingerprint_sha256,
+    owner, application, environment, zone, ca_provider,
+    pem_content, tags, description
+  ) VALUES (
+    ?, ?, ?, ?, ?,
+    ?, ?, ?, ?,
+    ?, ?, ?, ?, ?,
+    ?, ?, ?
+  )
+`;
+
+/**
+ * Create a commit callback that persists CSV rows into the database.
+ * Each committed row generates a certificate record (with placeholder
+ * PKI fields) and an audit log entry.
+ *
+ * @param db  The database instance.
+ * @returns   A `CsvCommitRowFn` callback for use with `importCsv`.
+ */
+export function createCsvCommitFn(db: Database.Database): CsvCommitRowFn {
+  const insertCert = db.prepare(INSERT_CSV_CERT_SQL);
+  const insertAudit = db.prepare(INSERT_AUDIT_SQL);
+
+  return (row: ParsedCsvCertificate, _rowNumber: number) => {
+    const id = uuidv4();
+
+    insertCert.run(
+      id,
+      row.commonName,
+      JSON.stringify(row.sans),
+      `CSV-${id.slice(0, 8).toUpperCase()}`,             // serial (auto-generated)
+      row.ca || 'Unknown',                                 // issuer from CA column
+      new Date().toISOString(),                            // not_before (import time)
+      new Date(Date.now() + 365 * 86_400_000).toISOString(), // not_after (1 year default)
+      'Unknown',                                           // algorithm (not in CSV)
+      `CSV-IMPORT-${id}`,                                  // fingerprint placeholder
+      row.owner,
+      row.application,
+      row.environment,
+      row.zone,
+      row.ca,
+      null,                                                // no PEM content for CSV import
+      JSON.stringify(row.tags),
+      '',                                                  // description
+    );
+
+    insertAudit.run(uuidv4(), id, row.commonName);
   };
 }
