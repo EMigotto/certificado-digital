@@ -18,6 +18,7 @@ import { initDatabase, closeDatabase } from './db.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { createCertificateRoutes } from './routes/certificates.js';
 import { createAuditRoutes, createCertificateAuditRoutes } from './routes/audit.js';
+import { createDashboardRouter } from './routes/dashboard.js';
 
 /* ------------------------------------------------------------------ */
 /* App factory (testable)                                              */
@@ -58,6 +59,7 @@ export function createApp(db: ReturnType<typeof initDatabase>) {
   app.use('/api/v1/certificates', createCertificateRoutes(db));
   app.use('/api/v1/audit', createAuditRoutes(db));
   app.use('/api/v1/certificates', createCertificateAuditRoutes(db));
+  app.use('/api/v1/dashboard', createDashboardRouter(db));
 
   // --- Error handling (must be last) ---
   app.use(errorHandler);
