@@ -2,23 +2,16 @@ import { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar/Sidebar';
 import { ToastContainer } from '@/components/Toast/Toast';
+import { OfflineBanner } from '@/components/OfflineBanner/OfflineBanner';
+import { ErrorBoundary } from '@/components/ErrorBoundary/ErrorBoundary';
+import { TableSkeleton } from '@/components/LoadingSkeleton/TableSkeleton';
 import { useUiStore } from '@/store/uiStore';
 import styles from './Layout.module.css';
 
 function LoadingFallback() {
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '200px',
-        fontFamily: 'var(--mono)',
-        fontSize: '13px',
-        color: 'var(--text-mute)',
-      }}
-    >
-      Carregando…
+    <div style={{ padding: '20px 0' }}>
+      <TableSkeleton rows={5} columns={6} />
     </div>
   );
 }
@@ -48,9 +41,12 @@ export function Layout() {
       <Sidebar />
 
       <main className={styles.main}>
-        <Suspense fallback={<LoadingFallback />}>
-          <Outlet />
-        </Suspense>
+        <OfflineBanner />
+        <ErrorBoundary>
+          <Suspense fallback={<LoadingFallback />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       <ToastContainer />

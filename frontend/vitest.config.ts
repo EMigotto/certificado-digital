@@ -13,7 +13,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     passWithNoTests: true,
-    setupFiles: [],
+    setupFiles: ['./src/__tests__/setup.ts'],
+    include: ['src/**/*.test.{ts,tsx}'],
     css: {
       modules: {
         classNameStrategy: 'non-scoped',
