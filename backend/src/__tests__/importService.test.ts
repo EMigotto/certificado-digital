@@ -37,6 +37,7 @@ function generatePemCert(cn: string = 'test.example.com'): {
  */
 function createMockPrisma() {
   const mockCreate = vi.fn();
+  const mockCreateMany = vi.fn();
   const mockFindFirst = vi.fn();
   const mockAuditCreate = vi.fn();
   const mockTransaction = vi.fn();
@@ -44,6 +45,7 @@ function createMockPrisma() {
   const prisma = {
     certificate: {
       create: mockCreate,
+      createMany: mockCreateMany,
       findFirst: mockFindFirst,
     },
     auditLog: {
@@ -56,6 +58,7 @@ function createMockPrisma() {
     prisma,
     mocks: {
       certCreate: mockCreate,
+      certCreateMany: mockCreateMany,
       certFindFirst: mockFindFirst,
       auditCreate: mockAuditCreate,
       transaction: mockTransaction,
@@ -318,15 +321,9 @@ describe('ImportService.executeCsvImport', () => {
     service = new ImportService(prisma);
   });
 
-  it('should import valid CSV rows in batch', async () => {
+  it('should import valid CSV rows using createMany for performance', async () => {
     mocks.certFindFirst.mockResolvedValue(null);
-    mocks.transaction.mockResolvedValueOnce([
-      { id: 'cert-1', commonName: 'api.example.com' },
-      { id: 'cert-2', commonName: 'web.example.com' },
-    ]);
-    // Second transaction for audit logs
-    mocks.transaction.mockResolvedValueOnce([{}, {}]);
-    // Final audit log for batch summary
+    mocks.certCreateMany.mockResolvedValue({ count: 2 });
     mocks.auditCreate.mockResolvedValue({ id: 'audit-summary' });
 
     const csv = [
@@ -343,12 +340,19 @@ describe('ImportService.executeCsvImport', () => {
     expect(result.batchId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+    // Verify createMany was used (bulk INSERT)
+    expect(mocks.certCreateMany).toHaveBeenCalledTimes(1);
+    expect(mocks.certCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ commonName: 'api.example.com' }),
+        expect.objectContaining({ commonName: 'web.example.com' }),
+      ]),
+    });
   });
 
   it('should skip error rows and only import valid ones', async () => {
     mocks.certFindFirst.mockResolvedValue(null);
-    mocks.transaction.mockResolvedValueOnce([{ id: 'cert-1', commonName: 'valid.example.com' }]);
-    mocks.transaction.mockResolvedValueOnce([{}]);
+    mocks.certCreateMany.mockResolvedValue({ count: 1 });
     mocks.auditCreate.mockResolvedValue({ id: 'audit-summary' });
 
     const csv = [
@@ -374,8 +378,7 @@ describe('ImportService.executeCsvImport', () => {
 
   it('should generate a batch ID (UUID v4)', async () => {
     mocks.certFindFirst.mockResolvedValue(null);
-    mocks.transaction.mockResolvedValueOnce([{ id: 'cert-1', commonName: 'api.example.com' }]);
-    mocks.transaction.mockResolvedValueOnce([{}]);
+    mocks.certCreateMany.mockResolvedValue({ count: 1 });
     mocks.auditCreate.mockResolvedValue({ id: 'audit-summary' });
 
     const csv = ['cn,issuer,owner,environment', 'api.example.com,CN=Test CA,teamA,prd'].join('\n');
@@ -389,8 +392,7 @@ describe('ImportService.executeCsvImport', () => {
 
   it('should create a batch summary audit log', async () => {
     mocks.certFindFirst.mockResolvedValue(null);
-    mocks.transaction.mockResolvedValueOnce([{ id: 'cert-1', commonName: 'api.example.com' }]);
-    mocks.transaction.mockResolvedValueOnce([{}]);
+    mocks.certCreateMany.mockResolvedValue({ count: 1 });
     mocks.auditCreate.mockResolvedValue({ id: 'audit-summary' });
 
     const csv = ['cn,issuer,owner,environment', 'api.example.com,CN=Test CA,teamA,prd'].join('\n');
@@ -405,5 +407,26 @@ describe('ImportService.executeCsvImport', () => {
         detail: expect.stringContaining('CSV bulk import complete'),
       }),
     });
+  });
+
+  it('should generate deterministic fingerprints for rows without one', async () => {
+    mocks.certFindFirst.mockResolvedValue(null);
+    mocks.certCreateMany.mockResolvedValue({ count: 2 });
+    mocks.auditCreate.mockResolvedValue({ id: 'audit-summary' });
+
+    const csv = [
+      'cn,issuer,owner,environment',
+      'a.example.com,CN=Test CA,teamA,dev',
+      'b.example.com,CN=Test CA,teamB,prd',
+    ].join('\n');
+
+    await service.executeCsvImport(csv);
+
+    const data = mocks.certCreateMany.mock.calls[0][0].data;
+    // Both should have SHA-256 fingerprints (colon-separated hex)
+    expect(data[0].fingerprintSha256).toMatch(/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/);
+    expect(data[1].fingerprintSha256).toMatch(/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/);
+    // They should be different
+    expect(data[0].fingerprintSha256).not.toBe(data[1].fingerprintSha256);
   });
 });

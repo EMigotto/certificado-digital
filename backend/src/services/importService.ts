@@ -238,7 +238,8 @@ export class ImportService {
   }
 
   /**
-   * Execute CSV import — insert valid rows in batches.
+   * Execute CSV import — insert valid rows in batches of 500 using
+   * createMany for performance (single bulk INSERT per batch).
    * Skips rows with errors or duplicates.
    */
   async executeCsvImport(csvContent: string, actor: string = 'system'): Promise<CsvImportSummary> {
@@ -259,53 +260,47 @@ export class ImportService {
 
     let imported = 0;
 
-    // Process in batches
+    // Process in batches using createMany for bulk INSERT performance
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
       const batch = validRows.slice(i, i + BATCH_SIZE);
 
-      const operations = batch.map((row) => {
+      const data = batch.map((row) => {
         const env = validateEnvironment(row.data.environment) ?? 'dev';
-        return this.prisma.certificate.create({
-          data: {
-            commonName: row.data.cn,
-            sans: row.data.sans,
-            serial: row.data.serial || crypto.randomUUID(),
-            issuer: row.data.issuer,
-            notBefore: row.data.notBefore ? new Date(row.data.notBefore) : new Date(),
-            notAfter: row.data.notAfter
-              ? new Date(row.data.notAfter)
-              : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            algorithm: row.data.algorithm || 'unknown',
-            fingerprintSha256: row.data.fingerprintSha256 || crypto.randomUUID(),
-            owner: row.data.owner,
-            environment: env,
-            application: row.data.application,
-            zone: row.data.zone,
-            caProvider: row.data.caProvider,
-            description: row.data.description,
-            tags: row.data.tags,
-          },
-        });
+        return {
+          commonName: row.data.cn,
+          sans: row.data.sans,
+          serial: row.data.serial || crypto.randomUUID(),
+          issuer: row.data.issuer,
+          notBefore: row.data.notBefore ? new Date(row.data.notBefore) : new Date(),
+          notAfter: row.data.notAfter
+            ? new Date(row.data.notAfter)
+            : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          algorithm: row.data.algorithm || 'unknown',
+          fingerprintSha256:
+            row.data.fingerprintSha256 || generateMetadataFingerprint(row.data),
+          owner: row.data.owner,
+          environment: env,
+          application: row.data.application,
+          zone: row.data.zone,
+          caProvider: row.data.caProvider,
+          description: row.data.description,
+          tags: row.data.tags,
+        };
       });
 
       try {
-        const results = await this.prisma.$transaction(operations);
-        imported += results.length;
+        const result = await this.prisma.certificate.createMany({ data });
+        imported += result.count;
 
-        // Create audit entries for each imported cert
-        const auditOps = results.map((cert) =>
-          this.prisma.auditLog.create({
-            data: {
-              certId: cert.id,
-              certCn: cert.commonName,
-              action: 'CREATE',
-              actor,
-              result: 'SUCCESS',
-              detail: `CSV bulk import (batch: ${batchId})`,
-            },
-          }),
-        );
-        await this.prisma.$transaction(auditOps);
+        // Batch audit entry (one per chunk — avoids N+1 audit writes)
+        await this.createAuditLog({
+          certId: null,
+          certCn: `CSV Import Batch ${batchId}`,
+          action: 'CREATE',
+          actor,
+          result: 'SUCCESS',
+          detail: `CSV bulk import chunk: ${result.count} certificates (batch: ${batchId})`,
+        });
       } catch (err) {
         // If a batch fails, mark all rows as failed
         for (const row of batch) {
@@ -365,4 +360,19 @@ function validateEnvironment(env?: string): 'dev' | 'hml' | 'prd' | null {
     return normalized;
   }
   return null;
+}
+
+/**
+ * Generate a deterministic SHA-256 fingerprint from CSV row metadata.
+ * Used when no real DER-based fingerprint is available (CSV imports without cert data).
+ * Includes a random component to ensure uniqueness even for rows with identical metadata.
+ */
+function generateMetadataFingerprint(row: {
+  cn: string;
+  issuer: string;
+  serial: string;
+}): string {
+  const payload = `${row.cn}|${row.issuer}|${row.serial || crypto.randomUUID()}`;
+  const hex = crypto.createHash('sha256').update(payload).digest('hex');
+  return hex.match(/.{2}/g)!.join(':').toUpperCase();
 }

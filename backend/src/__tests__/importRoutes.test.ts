@@ -4,8 +4,9 @@ import forge from 'node-forge';
 
 // ─── Mock Prisma client ─────────────────────────────────────────────────────
 
-const { mockCertCreate, mockCertFindFirst, mockAuditCreate, mockTransaction } = vi.hoisted(() => ({
+const { mockCertCreate, mockCertCreateMany, mockCertFindFirst, mockAuditCreate, mockTransaction } = vi.hoisted(() => ({
   mockCertCreate: vi.fn(),
+  mockCertCreateMany: vi.fn(),
   mockCertFindFirst: vi.fn(),
   mockAuditCreate: vi.fn(),
   mockTransaction: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('../prismaClient.js', () => ({
   default: {
     certificate: {
       create: mockCertCreate,
+      createMany: mockCertCreateMany,
       findFirst: mockCertFindFirst,
     },
     auditLog: {
@@ -255,8 +257,7 @@ describe('Import Routes', () => {
 
     it('should execute import when confirm=true', async () => {
       mockCertFindFirst.mockResolvedValue(null);
-      mockTransaction.mockResolvedValueOnce([{ id: 'cert-1', commonName: 'api.example.com' }]);
-      mockTransaction.mockResolvedValueOnce([{}]);
+      mockCertCreateMany.mockResolvedValue({ count: 1 });
       mockAuditCreate.mockResolvedValue({ id: 'audit-summary' });
 
       const csv = ['cn,issuer,owner,environment', 'api.example.com,CN=Test CA,teamA,prd'].join(
@@ -285,8 +286,7 @@ describe('Import Routes', () => {
 
     it('should execute import when confirm=true via query string', async () => {
       mockCertFindFirst.mockResolvedValue(null);
-      mockTransaction.mockResolvedValueOnce([{ id: 'cert-1', commonName: 'api.example.com' }]);
-      mockTransaction.mockResolvedValueOnce([{}]);
+      mockCertCreateMany.mockResolvedValue({ count: 1 });
       mockAuditCreate.mockResolvedValue({ id: 'audit-summary' });
 
       const csv = ['cn,issuer,owner,environment', 'api.example.com,CN=Test CA,teamA,prd'].join(
