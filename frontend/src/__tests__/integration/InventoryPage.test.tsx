@@ -21,13 +21,13 @@ function renderWithProviders() {
 }
 
 describe('InventoryPage', () => {
-  it('renders the page title', () => {
+  it('renders the page title with Inventário', () => {
     renderWithProviders();
-    expect(screen.getByText(/Inventário de Certificados/)).toBeInTheDocument();
+    expect(screen.getByText(/Inventário/)).toBeInTheDocument();
   });
 
-  it('renders the page subtitle', () => {
+  it('renders the C1 Inventory tag', () => {
     renderWithProviders();
-    expect(screen.getByText(/C1 Inventory/)).toBeInTheDocument();
+    expect(screen.getByText(/C1 · Inventory/)).toBeInTheDocument();
   });
 });
