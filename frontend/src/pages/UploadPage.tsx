@@ -1,13 +1,7 @@
-/** Placeholder — implemented in a later chunk */
-export default function UploadPage() {
-  return (
-    <div>
-      <h1 style={{ fontFamily: 'var(--serif)', fontSize: '36px', fontWeight: 400 }}>
-        Upload de Certificado
-      </h1>
-      <p style={{ color: 'var(--text-mute)', marginTop: '8px', fontFamily: 'var(--mono)', fontSize: '12px' }}>
-        Em desenvolvimento — C2 Import
-      </p>
-    </div>
-  );
-}
+/**
+ * UploadPage — re-exports the full implementation from pages/Upload.
+ *
+ * This file exists as the entry point used by the router (lazy import).
+ */
+
+export { UploadPage as default } from './Upload/UploadPage';

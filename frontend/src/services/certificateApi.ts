@@ -1,3 +1,9 @@
+/**
+ * Certificate API client — inventory, detail, and import endpoints.
+ *
+ * All methods return typed responses matching the backend contract.
+ */
+
 import axios from 'axios';
 import type { Certificate, CertStatus, PaginatedResponse } from '@certificado-digital/shared';
 
@@ -84,7 +90,7 @@ export async function exportCertificate(
   id: string,
   format: 'pem' | 'json',
 ): Promise<{ blob: Blob; filename: string }> {
-  const { data, headers } = await api.get(`/certificates/${id}/export`, {
+  const { data: blobData, headers } = await api.get(`/certificates/${id}/export`, {
     params: { format },
     responseType: 'blob',
   });
@@ -94,7 +100,7 @@ export async function exportCertificate(
   const filename =
     disposition?.match(/filename="?(.+?)"?$/)?.[1] ?? `certificate-${id}${fallbackExt}`;
 
-  return { blob: data as Blob, filename };
+  return { blob: blobData as Blob, filename };
 }
 
 /** Soft-delete (revoke) a certificate */
@@ -105,4 +111,160 @@ export async function revokeCertificate(id: string): Promise<void> {
 /** Hard-delete a certificate */
 export async function deleteCertificate(id: string): Promise<void> {
   await api.delete(`/certificates/${id}`);
+}
+
+// ─── Import types ───────────────────────────────────────────────────────────
+
+/** Metadata sent alongside the certificate file */
+export interface ImportMetadata {
+  owner: string;
+  environment: string;
+  application: string;
+  tags: string; // JSON string or key:value;key:value
+}
+
+/** Duplicate info returned on 409 */
+export interface DuplicateInfo {
+  existingId: string;
+  commonName: string;
+  issuer: string;
+  fingerprintSha256: string;
+  matchType: 'fingerprint' | 'cn_issuer';
+}
+
+/** Single import success response */
+export interface ImportSuccessResponse {
+  certificate: {
+    id: string;
+    commonName: string;
+    sans: string[];
+    serial: string;
+    issuer: string;
+    notBefore: string;
+    notAfter: string;
+    algorithm: string;
+    fingerprintSha256: string;
+    owner: string;
+    environment: string;
+    application: string;
+  };
+  auditId: string;
+}
+
+/** CSV preview row */
+export interface CsvPreviewRow {
+  row: number;
+  data: {
+    cn: string;
+    issuer: string;
+    owner: string;
+    environment: string;
+    sans: string[];
+    serial: string;
+    notBefore: string;
+    notAfter: string;
+    algorithm: string;
+    fingerprintSha256: string;
+    application: string;
+    zone: string;
+    caProvider: string;
+    description: string;
+    tags: Record<string, string>;
+  };
+  status: 'valid' | 'error' | 'duplicate';
+  errors: string[];
+}
+
+/** CSV preview response */
+export interface CsvPreviewResponse {
+  rows: CsvPreviewRow[];
+  validCount: number;
+  errorCount: number;
+  duplicateCount: number;
+  headerErrors: string[];
+}
+
+/** CSV import summary */
+export interface CsvImportSummary {
+  imported: number;
+  failed: number;
+  batchId: string;
+  failedRows: CsvPreviewRow[];
+}
+
+// ─── Import API methods ─────────────────────────────────────────────────────
+
+/**
+ * Upload a single certificate file with metadata.
+ *
+ * POST /api/certificates/import
+ */
+export async function importCertificate(
+  file: File,
+  metadata: ImportMetadata,
+  password?: string,
+): Promise<ImportSuccessResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('owner', metadata.owner);
+  formData.append('environment', metadata.environment);
+  formData.append('application', metadata.application);
+  formData.append('tags', metadata.tags);
+
+  if (password) {
+    formData.append('password', password);
+  }
+
+  const response = await api.post<ImportSuccessResponse>('/certificates/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+  return response.data;
+}
+
+/**
+ * Upload CSV for preview/validation (no import).
+ *
+ * POST /api/certificates/import/csv
+ */
+export async function previewCsvImport(file: File): Promise<CsvPreviewResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await api.post<CsvPreviewResponse>('/certificates/import/csv', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+  return response.data;
+}
+
+/**
+ * Execute CSV import (confirmed).
+ *
+ * POST /api/certificates/import/csv?confirm=true
+ */
+export async function executeCsvImport(file: File): Promise<CsvImportSummary> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('confirm', 'true');
+
+  const response = await api.post<CsvImportSummary>(
+    '/certificates/import/csv?confirm=true',
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } },
+  );
+
+  return response.data;
+}
+
+/**
+ * Download the CSV template.
+ *
+ * GET /api/certificates/import/csv/template
+ */
+export async function downloadCsvTemplate(): Promise<Blob> {
+  const response = await api.get('/certificates/import/csv/template', {
+    responseType: 'blob',
+  });
+  return response.data as Blob;
 }

@@ -23,11 +23,29 @@ function renderWithProviders() {
 describe('UploadPage', () => {
   it('renders the page title', () => {
     renderWithProviders();
-    expect(screen.getByText(/Upload de Certificado/)).toBeInTheDocument();
+    // Title is split: <em>Upload</em> de certificado
+    expect(screen.getByText(/de certificado/)).toBeInTheDocument();
+    // "Upload" appears in both title and breadcrumb
+    expect(screen.getAllByText('Upload').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the page subtitle', () => {
+  it('renders the file drop zone', () => {
     renderWithProviders();
-    expect(screen.getByText(/C2 Import/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Selecionar arquivo de certificado')).toBeInTheDocument();
+  });
+
+  it('renders the subtitle with format info', () => {
+    renderWithProviders();
+    expect(screen.getByText(/PEM, DER ou PKCS#12/)).toBeInTheDocument();
+  });
+
+  it('renders breadcrumb navigation', () => {
+    renderWithProviders();
+    expect(screen.getByText('Certificados')).toBeInTheDocument();
+  });
+
+  it('renders accepted formats hint', () => {
+    renderWithProviders();
+    expect(screen.getByText(/Formatos aceitos:/)).toBeInTheDocument();
   });
 });

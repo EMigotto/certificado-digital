@@ -23,11 +23,34 @@ function renderWithProviders() {
 describe('BulkImportPage', () => {
   it('renders the page title', () => {
     renderWithProviders();
-    expect(screen.getByText(/Importação em Lote/)).toBeInTheDocument();
+    // Title is split: <em>Importação</em> em lote
+    expect(screen.getByText('Importação')).toBeInTheDocument();
+    expect(screen.getByText(/em lote/)).toBeInTheDocument();
   });
 
-  it('renders the page subtitle', () => {
+  it('renders the CSV upload panel', () => {
     renderWithProviders();
-    expect(screen.getByText(/C2 Bulk Import/)).toBeInTheDocument();
+    expect(screen.getByText('Arquivo CSV')).toBeInTheDocument();
+  });
+
+  it('renders the drop zone', () => {
+    renderWithProviders();
+    expect(screen.getByLabelText('Selecionar arquivo CSV')).toBeInTheDocument();
+  });
+
+  it('renders template download link', () => {
+    renderWithProviders();
+    expect(screen.getByText('Download template CSV')).toBeInTheDocument();
+  });
+
+  it('renders breadcrumb navigation', () => {
+    renderWithProviders();
+    expect(screen.getByText('Certificados')).toBeInTheDocument();
+    expect(screen.getByText('Importação CSV')).toBeInTheDocument();
+  });
+
+  it('renders required columns info', () => {
+    renderWithProviders();
+    expect(screen.getByText(/cn, issuer, owner, environment/)).toBeInTheDocument();
   });
 });
