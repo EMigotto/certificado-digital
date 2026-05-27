@@ -65,12 +65,16 @@ model AuditLog {
   actor     String      @default("system")
   result    AuditResult @default(SUCCESS)
   detail    String      @default("")
-  timestamp DateTime    @default(now())
+  batchId   String?     @map("batch_id") @db.Uuid
+  timestamp DateTime    @default(now()) @db.Timestamptz(3)
 
   certificate Certificate? @relation(fields: [certId], references: [id], onDelete: SetNull)
 
   @@index([certId])
   @@index([action])
   @@index([timestamp])
+  @@index([batchId])
+  @@index([actor])
+  @@index([result])
   @@map("audit_logs")
 }

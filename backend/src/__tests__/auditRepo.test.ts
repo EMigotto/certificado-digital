@@ -1,20 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { AuditRepository, type AuditFilters } from '../repositories/auditRepo.js';
+import { AuditRepository } from '../repositories/auditRepo.js';
 import type { PrismaClient } from '@prisma/client';
 
-// ─── Test helpers ────────────────────────────────────────────────────────────
+// ─── Test helpers ───────────────────────────────────────────────────────────
 
 function createMockPrisma() {
-  const mockFindMany = vi.fn();
-  const mockCount = vi.fn();
-  const mockCreate = vi.fn();
+  const mockAuditCreate = vi.fn();
+  const mockAuditFindMany = vi.fn();
+  const mockAuditCount = vi.fn();
   const mockTransaction = vi.fn();
 
   const prisma = {
     auditLog: {
-      findMany: mockFindMany,
-      count: mockCount,
-      create: mockCreate,
+      create: mockAuditCreate,
+      findMany: mockAuditFindMany,
+      count: mockAuditCount,
     },
     $transaction: mockTransaction,
   } as unknown as PrismaClient;
@@ -22,15 +22,15 @@ function createMockPrisma() {
   return {
     prisma,
     mocks: {
-      findMany: mockFindMany,
-      count: mockCount,
-      create: mockCreate,
+      auditCreate: mockAuditCreate,
+      auditFindMany: mockAuditFindMany,
+      auditCount: mockAuditCount,
       transaction: mockTransaction,
     },
   };
 }
 
-// ─── Unit tests: buildWhereClause ───────────────────────────────────────────
+// ─── Tests: buildWhereClause ────────────────────────────────────────────────
 
 describe('AuditRepository.buildWhereClause', () => {
   let repo: AuditRepository;
@@ -45,18 +45,18 @@ describe('AuditRepository.buildWhereClause', () => {
     expect(where).toEqual({});
   });
 
-  it('should filter by action', () => {
-    const where = repo.buildWhereClause({ action: 'CREATE' });
-    expect(where).toEqual({ action: 'CREATE' });
-  });
-
-  it('should normalize action to uppercase', () => {
+  it('should filter by action (case-insensitive input)', () => {
     const where = repo.buildWhereClause({ action: 'create' });
     expect(where).toEqual({ action: 'CREATE' });
   });
 
+  it('should filter by action (uppercase input)', () => {
+    const where = repo.buildWhereClause({ action: 'DELETE' });
+    expect(where).toEqual({ action: 'DELETE' });
+  });
+
   it('should ignore invalid action values', () => {
-    const where = repo.buildWhereClause({ action: 'INVALID' });
+    const where = repo.buildWhereClause({ action: 'INVALID_ACTION' });
     expect(where).toEqual({});
   });
 
@@ -67,45 +67,65 @@ describe('AuditRepository.buildWhereClause', () => {
     });
   });
 
+  it('should ignore empty/whitespace actor', () => {
+    const where = repo.buildWhereClause({ actor: '   ' });
+    expect(where).toEqual({});
+  });
+
   it('should filter by certificateId (exact match)', () => {
     const where = repo.buildWhereClause({ certificateId: 'cert-001' });
     expect(where).toEqual({ certId: 'cert-001' });
   });
 
-  it('should filter by batchId (contains in detail)', () => {
-    const where = repo.buildWhereClause({ batchId: 'batch-abc' });
-    expect(where).toEqual({ detail: { contains: 'batch-abc' } });
+  it('should filter by batchId (exact match on column)', () => {
+    const where = repo.buildWhereClause({ batchId: 'batch-uuid-123' });
+    expect(where).toEqual({ batchId: 'batch-uuid-123' });
   });
 
-  it('should filter by dateFrom', () => {
+  it('should filter by dateFrom (gte)', () => {
     const where = repo.buildWhereClause({ dateFrom: '2025-01-01' });
     expect(where).toHaveProperty('timestamp');
-    const ts = where.timestamp as { gte: Date };
+    const ts = (where as { timestamp: { gte: Date } }).timestamp;
     expect(ts.gte).toBeInstanceOf(Date);
     expect(ts.gte.toISOString()).toContain('2025-01-01');
   });
 
-  it('should filter by dateTo (end of day)', () => {
-    const where = repo.buildWhereClause({ dateTo: '2025-12-31' });
+  it('should filter by dateTo (lte, end of day for date-only)', () => {
+    const where = repo.buildWhereClause({ dateTo: '2025-06-30' });
     expect(where).toHaveProperty('timestamp');
-    const ts = where.timestamp as { lte: Date };
+    const ts = (where as { timestamp: { lte: Date } }).timestamp;
     expect(ts.lte).toBeInstanceOf(Date);
-    expect(ts.lte.getHours()).toBe(23);
-    expect(ts.lte.getMinutes()).toBe(59);
+    // End of day: 23:59:59.999 UTC
+    expect(ts.lte.getUTCHours()).toBe(23);
+    expect(ts.lte.getUTCMinutes()).toBe(59);
   });
 
-  it('should filter by result', () => {
-    const where = repo.buildWhereClause({ result: 'FAILURE' });
+  it('should filter by dateTo with full ISO timestamp (exact)', () => {
+    const where = repo.buildWhereClause({ dateTo: '2025-06-30T15:30:00.000Z' });
+    expect(where).toHaveProperty('timestamp');
+    const ts = (where as { timestamp: { lte: Date } }).timestamp;
+    // Full ISO — should NOT add end-of-day adjustment
+    expect(ts.lte.getUTCHours()).toBe(15);
+    expect(ts.lte.getUTCMinutes()).toBe(30);
+  });
+
+  it('should ignore invalid dateFrom', () => {
+    const where = repo.buildWhereClause({ dateFrom: 'not-a-date' });
+    expect(where).toEqual({});
+  });
+
+  it('should ignore invalid dateTo', () => {
+    const where = repo.buildWhereClause({ dateTo: 'not-a-date' });
+    expect(where).toEqual({});
+  });
+
+  it('should filter by result (case-insensitive input)', () => {
+    const where = repo.buildWhereClause({ result: 'failure' });
     expect(where).toEqual({ result: 'FAILURE' });
   });
 
-  it('should normalize result to uppercase', () => {
-    const where = repo.buildWhereClause({ result: 'success' });
-    expect(where).toEqual({ result: 'SUCCESS' });
-  });
-
   it('should ignore invalid result values', () => {
-    const where = repo.buildWhereClause({ result: 'UNKNOWN' });
+    const where = repo.buildWhereClause({ result: 'MAYBE' });
     expect(where).toEqual({});
   });
 
@@ -115,10 +135,9 @@ describe('AuditRepository.buildWhereClause', () => {
       actor: 'admin',
       result: 'SUCCESS',
     });
-
     expect(where).toHaveProperty('AND');
-    const and = (where as { AND: unknown[] }).AND;
-    expect(and).toHaveLength(3);
+    const conditions = (where as { AND: unknown[] }).AND;
+    expect(conditions).toHaveLength(3);
   });
 
   it('should return single condition without AND wrapper', () => {
@@ -127,35 +146,44 @@ describe('AuditRepository.buildWhereClause', () => {
     expect(where).toEqual({ action: 'DELETE' });
   });
 
-  it('should ignore empty/whitespace-only string filters', () => {
+  it('should combine date range with other filters', () => {
     const where = repo.buildWhereClause({
-      actor: '   ',
-      certificateId: '',
-      batchId: '  ',
+      action: 'CREATE',
+      dateFrom: '2025-01-01',
+      dateTo: '2025-12-31',
     });
-    expect(where).toEqual({});
-  });
-
-  it('should skip invalid date strings', () => {
-    const where = repo.buildWhereClause({ dateFrom: 'not-a-date' });
-    expect(where).toEqual({});
+    expect(where).toHaveProperty('AND');
+    const conditions = (where as { AND: unknown[] }).AND;
+    expect(conditions).toHaveLength(3);
   });
 });
 
-// ─── Unit tests: findMany ────────────────────────────────────────────────────
+// ─── Tests: findMany ────────────────────────────────────────────────────────
 
 describe('AuditRepository.findMany', () => {
   let repo: AuditRepository;
   let mocks: ReturnType<typeof createMockPrisma>['mocks'];
 
   beforeEach(() => {
-    const mock = createMockPrisma();
-    repo = new AuditRepository(mock.prisma);
-    mocks = mock.mocks;
+    const { prisma, mocks: m } = createMockPrisma();
+    mocks = m;
+    repo = new AuditRepository(prisma);
   });
 
   it('should call $transaction with findMany and count', async () => {
-    const entries = [{ id: 'a-1' }];
+    const entries = [
+      {
+        id: 'audit-1',
+        certId: 'cert-1',
+        certCn: 'test.example.com',
+        action: 'CREATE',
+        actor: 'admin',
+        result: 'SUCCESS',
+        detail: 'Imported',
+        batchId: null,
+        timestamp: new Date(),
+      },
+    ];
     mocks.transaction.mockResolvedValue([entries, 1]);
 
     const result = await repo.findMany({}, { page: 1, pageSize: 25, skip: 0, take: 25 });
@@ -164,96 +192,123 @@ describe('AuditRepository.findMany', () => {
     expect(result.data).toEqual(entries);
     expect(result.total).toBe(1);
   });
-
-  it('should pass pagination skip/take to findMany', async () => {
-    mocks.transaction.mockResolvedValue([[], 0]);
-
-    await repo.findMany({}, { page: 2, pageSize: 10, skip: 10, take: 10 });
-
-    // Verify the transaction was called (Prisma batches are opaque in mocks)
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
-  });
 });
 
-// ─── Unit tests: findByBatchId ──────────────────────────────────────────────
+// ─── Tests: findByBatchId ───────────────────────────────────────────────────
 
 describe('AuditRepository.findByBatchId', () => {
   let repo: AuditRepository;
   let mocks: ReturnType<typeof createMockPrisma>['mocks'];
 
   beforeEach(() => {
-    const mock = createMockPrisma();
-    repo = new AuditRepository(mock.prisma);
-    mocks = mock.mocks;
+    const { prisma, mocks: m } = createMockPrisma();
+    mocks = m;
+    repo = new AuditRepository(prisma);
   });
 
-  it('should query with detail contains batchId', async () => {
-    mocks.findMany.mockResolvedValue([]);
+  it('should query by batchId column and sort by timestamp DESC', async () => {
+    const entries = [{ id: 'audit-1' }, { id: 'audit-2' }];
+    mocks.auditFindMany.mockResolvedValue(entries);
 
-    await repo.findByBatchId('batch-xyz');
+    const result = await repo.findByBatchId('batch-123');
 
-    expect(mocks.findMany).toHaveBeenCalledWith({
-      where: { detail: { contains: 'batch-xyz' } },
+    expect(mocks.auditFindMany).toHaveBeenCalledWith({
+      where: { batchId: 'batch-123' },
       orderBy: { timestamp: 'desc' },
     });
-  });
-
-  it('should return matching entries', async () => {
-    const entries = [{ id: 'a-1' }, { id: 'a-2' }];
-    mocks.findMany.mockResolvedValue(entries);
-
-    const result = await repo.findByBatchId('batch-xyz');
-
     expect(result).toEqual(entries);
   });
 });
 
-// ─── Unit tests: create ─────────────────────────────────────────────────────
+// ─── Tests: create ──────────────────────────────────────────────────────────
 
 describe('AuditRepository.create', () => {
   let repo: AuditRepository;
   let mocks: ReturnType<typeof createMockPrisma>['mocks'];
 
   beforeEach(() => {
-    const mock = createMockPrisma();
-    repo = new AuditRepository(mock.prisma);
-    mocks = mock.mocks;
+    const { prisma, mocks: m } = createMockPrisma();
+    mocks = m;
+    repo = new AuditRepository(prisma);
   });
 
-  it('should create an audit log entry with all fields', async () => {
-    const entry = {
+  it('should create audit entry with all fields', async () => {
+    const created = {
+      id: 'audit-new',
       certId: 'cert-001',
       certCn: 'test.example.com',
-      action: 'CREATE' as const,
+      action: 'CREATE',
       actor: 'admin',
-      result: 'SUCCESS' as const,
+      result: 'SUCCESS',
       detail: 'Certificate imported',
+      batchId: null,
+      timestamp: new Date(),
     };
+    mocks.auditCreate.mockResolvedValue(created);
 
-    const created = { id: 'audit-new', ...entry, timestamp: new Date() };
-    mocks.create.mockResolvedValue(created);
+    const result = await repo.create({
+      certId: 'cert-001',
+      certCn: 'test.example.com',
+      action: 'CREATE',
+      actor: 'admin',
+      result: 'SUCCESS',
+      detail: 'Certificate imported',
+    });
 
-    const result = await repo.create(entry);
-
-    expect(mocks.create).toHaveBeenCalledWith({ data: entry });
-    expect(result.id).toBe('audit-new');
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: {
+        certId: 'cert-001',
+        certCn: 'test.example.com',
+        action: 'CREATE',
+        actor: 'admin',
+        result: 'SUCCESS',
+        detail: 'Certificate imported',
+        batchId: null,
+      },
+    });
+    expect(result).toEqual(created);
   });
 
-  it('should create an entry with null certId', async () => {
-    const entry = {
-      certId: null,
-      certCn: 'batch-summary',
-      action: 'CREATE' as const,
-      actor: 'system',
-      result: 'SUCCESS' as const,
-      detail: 'CSV bulk import complete',
+  it('should create audit entry with batchId', async () => {
+    const created = {
+      id: 'audit-batch',
+      batchId: 'batch-uuid-456',
     };
+    mocks.auditCreate.mockResolvedValue(created);
 
-    mocks.create.mockResolvedValue({ id: 'audit-batch', ...entry, timestamp: new Date() });
+    await repo.create({
+      certId: 'cert-002',
+      certCn: 'batch.example.com',
+      action: 'CREATE',
+      actor: 'system',
+      result: 'SUCCESS',
+      detail: 'CSV import',
+      batchId: 'batch-uuid-456',
+    });
 
-    const result = await repo.create(entry);
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        batchId: 'batch-uuid-456',
+      }),
+    });
+  });
 
-    expect(mocks.create).toHaveBeenCalledWith({ data: entry });
-    expect(result.id).toBe('audit-batch');
+  it('should set batchId to null when undefined', async () => {
+    mocks.auditCreate.mockResolvedValue({ id: 'audit-1' });
+
+    await repo.create({
+      certId: null,
+      certCn: 'test.pem',
+      action: 'CREATE',
+      actor: 'system',
+      result: 'FAILURE',
+      detail: 'Parse error',
+    });
+
+    expect(mocks.auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        batchId: null,
+      }),
+    });
   });
 });

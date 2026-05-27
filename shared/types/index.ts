@@ -49,7 +49,21 @@ export interface AuditLogEntry {
   actor: string;
   result: AuditResult;
   detail: string;
+  batchId: string | null;
   timestamp: string; // ISO-8601
+}
+
+/** Audit log filter parameters (query string) */
+export interface AuditFilterParams {
+  page?: string;
+  pageSize?: string;
+  action?: string;
+  actor?: string;
+  certificateId?: string;
+  batchId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  result?: string;
 }
 
 /** Paginated response wrapper */

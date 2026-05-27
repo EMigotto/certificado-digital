@@ -1,15 +1,16 @@
 /**
  * Audit log routes — read-only API for the immutable audit trail.
  *
- * GET /api/audit            — Paginated, filterable audit log entries
- * GET /api/audit/batch/:id  — All entries for a specific batch ID
+ * GET /api/audit              — Paginated, filterable audit log entries
+ * GET /api/audit/batch/:batchId — All entries for a specific batch ID
  *
  * No POST/PUT/PATCH/DELETE routes are exposed — audit entries are
  * created internally by other services, never by external clients.
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { AuditService, type AuditQueryParams } from '../services/auditService.js';
+import type { AuditFilterParams } from '@certificado-digital/shared';
+import { AuditService } from '../services/auditService.js';
 import { AuditRepository } from '../repositories/auditRepo.js';
 import prisma from '../prismaClient.js';
 
@@ -26,7 +27,7 @@ export async function auditRoutes(server: FastifyInstance): Promise<void> {
     '/api/audit',
     async (
       request: FastifyRequest<{
-        Querystring: AuditQueryParams;
+        Querystring: AuditFilterParams;
       }>,
       reply: FastifyReply,
     ) => {
@@ -47,16 +48,18 @@ export async function auditRoutes(server: FastifyInstance): Promise<void> {
     ) => {
       const { batchId } = request.params;
 
-      if (!batchId || !batchId.trim()) {
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(batchId)) {
         return reply.status(400).send({
           statusCode: 400,
           error: 'Bad Request',
-          message: 'batchId parameter is required',
+          message: `Invalid batch ID format: "${batchId}". Must be a valid UUID.`,
         });
       }
 
       const entries = await service.getByBatchId(batchId);
-      return reply.send({ data: entries, total: entries.length });
+      return reply.send({ data: entries, batchId, total: entries.length });
     },
   );
 }
