@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { config } from './config.js';
 import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
+import { auditRoutes } from './routes/audit.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -28,6 +29,9 @@ export async function buildServer() {
 
   // Certificate import routes (file upload + CSV)
   await server.register(importRoutes);
+
+  // Audit log routes (read-only)
+  await server.register(auditRoutes);
 
   return server;
 }
