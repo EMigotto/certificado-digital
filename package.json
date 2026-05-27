@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "shared",
     "frontend",
-    "backend",
-    "shared"
+    "backend"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",

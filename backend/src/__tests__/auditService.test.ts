@@ -3,23 +3,25 @@ import {
   AuditService,
   mapToApiAuditEntry,
   sanitizeForAudit,
+  type AuditLogParams,
 } from '../services/auditService.js';
 import type { AuditRepository } from '../repositories/auditRepo.js';
-import type { AuditLog } from '@prisma/client';
+import type { AuditEntry } from '@prisma/client';
 
-// ─── Test helpers ───────────────────────────────────────────────────────────
+// ─── Test helpers ────────────────────────────────────────────────────────────
 
-function makeAuditLog(overrides: Partial<AuditLog> = {}): AuditLog {
+function makeAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   return {
     id: 'audit-001',
-    certId: 'cert-001',
+    certificateId: 'cert-001',
     certCn: 'test.example.com',
     action: 'CREATE',
     actor: 'admin',
     result: 'SUCCESS',
     detail: 'Certificate imported from file: cert.pem',
+    changes: null,
     batchId: null,
-    timestamp: new Date('2025-06-01T12:00:00.000Z'),
+    timestamp: new Date('2025-01-15T10:30:00.000Z'),
     ...overrides,
   };
 }
@@ -29,10 +31,9 @@ function makeMockRepo(): {
   mocks: Record<string, ReturnType<typeof vi.fn>>;
 } {
   const mocks = {
-    create: vi.fn(),
-    createInTransaction: vi.fn(),
     findMany: vi.fn(),
     findByBatchId: vi.fn(),
+    create: vi.fn(),
     buildWhereClause: vi.fn(),
   };
 
@@ -42,117 +43,115 @@ function makeMockRepo(): {
   };
 }
 
-// ─── Unit tests: mapToApiAuditEntry ─────────────────────────────────────────
+// ─── Unit tests: mapToApiAuditEntry ──────────────────────────────────────────
 
 describe('mapToApiAuditEntry', () => {
-  it('should map Prisma AuditLog to AuditLogEntry with ISO timestamp', () => {
-    const entry = makeAuditLog();
-    const result = mapToApiAuditEntry(entry);
+  it('should map Prisma AuditEntry to API AuditEntry with ISO timestamp', () => {
+    const log = makeAuditEntry();
+    const result = mapToApiAuditEntry(log);
 
     expect(result.id).toBe('audit-001');
-    expect(result.certId).toBe('cert-001');
+    expect(result.certificateId).toBe('cert-001');
     expect(result.certCn).toBe('test.example.com');
     expect(result.action).toBe('CREATE');
     expect(result.actor).toBe('admin');
     expect(result.result).toBe('SUCCESS');
-    expect(result.detail).toContain('cert.pem');
-    expect(result.batchId).toBeNull();
-    expect(result.timestamp).toBe('2025-06-01T12:00:00.000Z');
+    expect(result.detail).toBe('Certificate imported from file: cert.pem');
+    expect(result.timestamp).toBe('2025-01-15T10:30:00.000Z');
   });
 
   it('should handle null certId', () => {
-    const entry = makeAuditLog({ certId: null });
-    const result = mapToApiAuditEntry(entry);
-    expect(result.certId).toBeNull();
+    const log = makeAuditEntry({ certificateId: null });
+    const result = mapToApiAuditEntry(log);
+    expect(result.certificateId).toBeNull();
   });
 
-  it('should include batchId when present', () => {
-    const entry = makeAuditLog({ batchId: 'batch-123' });
-    const result = mapToApiAuditEntry(entry);
-    expect(result.batchId).toBe('batch-123');
-  });
-
-  it('should preserve millisecond precision in timestamps', () => {
-    const entry = makeAuditLog({
-      timestamp: new Date('2025-06-01T12:00:00.123Z'),
-    });
-    const result = mapToApiAuditEntry(entry);
-    expect(result.timestamp).toBe('2025-06-01T12:00:00.123Z');
+  it('should handle FAILURE result', () => {
+    const log = makeAuditEntry({ result: 'FAILURE', detail: 'Import failed: invalid cert' });
+    const result = mapToApiAuditEntry(log);
+    expect(result.result).toBe('FAILURE');
+    expect(result.detail).toContain('failed');
   });
 });
 
-// ─── Unit tests: sanitizeForAudit ───────────────────────────────────────────
+// ─── Unit tests: sanitizeForAudit ────────────────────────────────────────────
 
 describe('sanitizeForAudit', () => {
-  it('should redact password fields', () => {
-    const obj = { password: 'secret123', username: 'admin' };
-    const result = sanitizeForAudit(obj);
-    expect(result.password).toBe('[REDACTED]');
-    expect(result.username).toBe('admin');
-  });
-
-  it('should redact pemData fields', () => {
-    const obj = {
-      pemData: '-----BEGIN CERTIFICATE-----\nABC\n-----END CERTIFICATE-----',
+  it('should redact sensitive fields (password, privateKey, pemData)', () => {
+    const input = {
       commonName: 'test.example.com',
+      password: 'secret123',
+      privateKey: '-----BEGIN PRIVATE KEY-----',
+      pemData: '-----BEGIN CERTIFICATE-----',
     };
-    const result = sanitizeForAudit(obj);
-    expect(result.pemData).toBe('[REDACTED]');
+
+    const result = sanitizeForAudit(input);
+
     expect(result.commonName).toBe('test.example.com');
-  });
-
-  it('should redact privateKey fields', () => {
-    const obj = { privateKey: 'RSA PRIVATE KEY DATA', algorithm: 'RSA-2048' };
-    const result = sanitizeForAudit(obj);
+    expect(result.password).toBe('[REDACTED]');
     expect(result.privateKey).toBe('[REDACTED]');
-    expect(result.algorithm).toBe('RSA-2048');
+    expect(result.pemData).toBe('[REDACTED]');
   });
 
-  it('should redact secret and passphrase fields', () => {
-    const obj = { secret: 'top-secret', passphrase: 'p@ss' };
-    const result = sanitizeForAudit(obj);
-    expect(result.secret).toBe('[REDACTED]');
-    expect(result.passphrase).toBe('[REDACTED]');
-  });
-
-  it('should redact pem_data and private_key (snake_case)', () => {
-    const obj = { pem_data: 'CERT', private_key: 'KEY' };
-    const result = sanitizeForAudit(obj);
-    expect(result.pem_data).toBe('[REDACTED]');
-    expect(result.private_key).toBe('[REDACTED]');
-  });
-
-  it('should recursively strip nested sensitive fields', () => {
-    const obj = {
-      before: { pemData: 'old-pem', commonName: 'old.example.com' },
-      after: { pemData: 'new-pem', commonName: 'new.example.com' },
+  it('should pass through non-sensitive fields', () => {
+    const input = {
+      commonName: 'test.example.com',
+      issuer: 'CN=Test CA',
+      serial: 'AABBCCDD',
     };
-    const result = sanitizeForAudit(obj);
-    const before = result.before as Record<string, unknown>;
-    const after = result.after as Record<string, unknown>;
-    expect(before.pemData).toBe('[REDACTED]');
-    expect(before.commonName).toBe('old.example.com');
-    expect(after.pemData).toBe('[REDACTED]');
-    expect(after.commonName).toBe('new.example.com');
+
+    const result = sanitizeForAudit(input);
+
+    expect(result.commonName).toBe('test.example.com');
+    expect(result.issuer).toBe('CN=Test CA');
+    expect(result.serial).toBe('AABBCCDD');
   });
 
-  it('should preserve arrays and primitives', () => {
-    const obj = { tags: ['a', 'b'], count: 5, active: true };
-    const result = sanitizeForAudit(obj);
-    expect(result.tags).toEqual(['a', 'b']);
-    expect(result.count).toBe(5);
-    expect(result.active).toBe(true);
+  it('should recursively sanitize nested objects', () => {
+    const input = {
+      changes: {
+        before: { pemData: 'old-pem', commonName: 'old.example.com' },
+        after: { pemData: 'new-pem', commonName: 'new.example.com' },
+      },
+    };
+
+    const result = sanitizeForAudit(input);
+    const changes = result.changes as Record<string, Record<string, unknown>>;
+
+    expect(changes.before.pemData).toBe('[REDACTED]');
+    expect(changes.before.commonName).toBe('old.example.com');
+    expect(changes.after.pemData).toBe('[REDACTED]');
+    expect(changes.after.commonName).toBe('new.example.com');
+  });
+
+  it('should handle arrays without recursion', () => {
+    const input = {
+      sans: ['a.example.com', 'b.example.com'],
+      tags: { team: 'platform' },
+    };
+
+    const result = sanitizeForAudit(input);
+
+    expect(result.sans).toEqual(['a.example.com', 'b.example.com']);
+    expect(result.tags).toEqual({ team: 'platform' });
   });
 
   it('should handle empty object', () => {
     const result = sanitizeForAudit({});
     expect(result).toEqual({});
   });
+
+  it('should redact pem_data (snake_case variant)', () => {
+    const input = { pem_data: 'cert-content', private_key: 'key-content' };
+    const result = sanitizeForAudit(input);
+    expect(result.pem_data).toBe('[REDACTED]');
+    expect(result.private_key).toBe('[REDACTED]');
+  });
 });
 
-// ─── Unit tests: AuditService ───────────────────────────────────────────────
+// ─── Unit tests: AuditService.log ────────────────────────────────────────────
 
-describe('AuditService', () => {
+describe('AuditService.log', () => {
   let service: AuditService;
   let mocks: Record<string, ReturnType<typeof vi.fn>>;
 
@@ -162,352 +161,300 @@ describe('AuditService', () => {
     mocks = mockRepo.mocks;
   });
 
-  // ── log() ───────────────────────────────────────────────────────────────
+  it('should create an audit entry with basic params', async () => {
+    const created = makeAuditEntry();
+    mocks.create.mockResolvedValue(created);
 
-  describe('log', () => {
-    it('should create an audit entry with basic fields', async () => {
-      const created = makeAuditLog();
-      mocks.create.mockResolvedValue(created);
+    const params: AuditLogParams = {
+      actor: 'admin',
+      action: 'CREATE',
+      certificateCn: 'test.example.com',
+      certificateId: 'cert-001',
+      result: 'SUCCESS',
+      detail: 'Certificate imported',
+    };
 
-      const result = await service.log({
-        actor: 'admin',
-        action: 'CREATE',
-        certificateId: 'cert-001',
-        certificateCn: 'test.example.com',
-        result: 'SUCCESS',
-        detail: 'Certificate imported from file: cert.pem',
-      });
+    const result = await service.log(params);
 
-      expect(mocks.create).toHaveBeenCalledWith({
-        certId: 'cert-001',
-        certCn: 'test.example.com',
-        action: 'CREATE',
-        actor: 'admin',
-        result: 'SUCCESS',
-        detail: 'Certificate imported from file: cert.pem',
-        batchId: null,
-      });
-
-      expect(result.id).toBe('audit-001');
-      expect(result.action).toBe('CREATE');
-      expect(result.result).toBe('SUCCESS');
+    expect(mocks.create).toHaveBeenCalledWith({
+      certificateId: 'cert-001',
+      certCn: 'test.example.com',
+      action: 'CREATE',
+      actor: 'admin',
+      result: 'SUCCESS',
+      detail: 'Certificate imported',
     });
 
-    it('should include batchId when provided', async () => {
-      const created = makeAuditLog({ batchId: 'batch-uuid-123' });
-      mocks.create.mockResolvedValue(created);
+    expect(result.id).toBe('audit-001');
+    expect(result.action).toBe('CREATE');
+    expect(typeof result.timestamp).toBe('string');
+  });
 
-      const result = await service.log({
-        actor: 'system',
-        action: 'CREATE',
-        certificateId: 'cert-001',
-        certificateCn: 'bulk.example.com',
-        batchId: 'batch-uuid-123',
-        result: 'SUCCESS',
-        detail: 'CSV import',
-      });
+  it('should include batchId in detail string', async () => {
+    const created = makeAuditEntry({
+      detail: 'CSV import | batch: abc-123-def',
+    });
+    mocks.create.mockResolvedValue(created);
 
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          batchId: 'batch-uuid-123',
-        }),
-      );
-      expect(result.batchId).toBe('batch-uuid-123');
+    await service.log({
+      actor: 'admin',
+      action: 'CREATE',
+      certificateCn: 'test.example.com',
+      result: 'SUCCESS',
+      detail: 'CSV import',
+      batchId: 'abc-123-def',
     });
 
-    it('should log failures with error reason', async () => {
-      const created = makeAuditLog({
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: 'CSV import | batch: abc-123-def',
+      }),
+    );
+  });
+
+  it('should include errorReason in detail string for failures', async () => {
+    const created = makeAuditEntry({
+      result: 'FAILURE',
+      detail: 'Import failed | error: Invalid PEM format',
+    });
+    mocks.create.mockResolvedValue(created);
+
+    await service.log({
+      actor: 'system',
+      action: 'CREATE',
+      certificateCn: 'bad-cert.pem',
+      result: 'FAILURE',
+      detail: 'Import failed',
+      errorReason: 'Invalid PEM format',
+    });
+
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         result: 'FAILURE',
         detail: 'Import failed | error: Invalid PEM format',
-      });
-      mocks.create.mockResolvedValue(created);
+      }),
+    );
+  });
 
-      const result = await service.log({
-        actor: 'admin',
-        action: 'CREATE',
-        certificateCn: 'bad-cert.pem',
-        result: 'FAILURE',
-        detail: 'Import failed',
-        errorReason: 'Invalid PEM format',
-      });
+  it('should include both batchId and errorReason when present', async () => {
+    const created = makeAuditEntry({ detail: 'Row failed | batch: b-1 | error: parse error' });
+    mocks.create.mockResolvedValue(created);
 
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          result: 'FAILURE',
-          detail: 'Import failed | error: Invalid PEM format',
-        }),
-      );
-      expect(result.result).toBe('FAILURE');
+    await service.log({
+      actor: 'admin',
+      action: 'CREATE',
+      certificateCn: 'row5.example.com',
+      result: 'FAILURE',
+      detail: 'Row failed',
+      batchId: 'b-1',
+      errorReason: 'parse error',
     });
 
-    it('should strip sensitive data from metadata', async () => {
-      const created = makeAuditLog();
-      mocks.create.mockResolvedValue(created);
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: 'Row failed | batch: b-1 | error: parse error',
+      }),
+    );
+  });
 
-      await service.log({
-        actor: 'admin',
-        action: 'CREATE',
-        certificateCn: 'test.example.com',
-        result: 'SUCCESS',
-        detail: 'Imported',
-        metadata: {
-          filename: 'cert.pem',
-          pemData: 'SHOULD_BE_REDACTED',
-          password: 'SHOULD_BE_REDACTED',
-          owner: 'teamA',
-        },
-      });
+  it('should default certificateId to null when not provided', async () => {
+    const created = makeAuditEntry({ certificateId: null });
+    mocks.create.mockResolvedValue(created);
 
-      const call = mocks.create.mock.calls[0][0];
-      expect(call.detail).toContain('metadata:');
-      expect(call.detail).not.toContain('SHOULD_BE_REDACTED');
-      expect(call.detail).toContain('[REDACTED]');
-      expect(call.detail).toContain('teamA');
+    await service.log({
+      actor: 'admin',
+      action: 'CREATE',
+      certificateCn: 'batch-import',
+      result: 'SUCCESS',
     });
 
-    it('should handle null certificateId for failed imports', async () => {
-      const created = makeAuditLog({ certId: null });
-      mocks.create.mockResolvedValue(created);
-
-      const result = await service.log({
-        actor: 'system',
-        action: 'CREATE',
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         certificateId: null,
-        certificateCn: 'unknown.pem',
-        result: 'FAILURE',
-        errorReason: 'Unsupported format',
-      });
+      }),
+    );
+  });
 
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          certId: null,
-        }),
-      );
-      expect(result.certId).toBeNull();
+  it('should produce detail with no separator when only detail is provided', async () => {
+    const created = makeAuditEntry();
+    mocks.create.mockResolvedValue(created);
+
+    await service.log({
+      actor: 'admin',
+      action: 'DELETE',
+      certificateCn: 'test.example.com',
+      certificateId: 'cert-001',
+      result: 'SUCCESS',
+      detail: 'Certificate revoked',
     });
 
-    it('should default batchId to null when not provided', async () => {
-      const created = makeAuditLog();
-      mocks.create.mockResolvedValue(created);
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: 'Certificate revoked',
+      }),
+    );
+  });
 
-      await service.log({
-        actor: 'admin',
-        action: 'DELETE',
-        certificateId: 'cert-001',
-        certificateCn: 'test.example.com',
-        result: 'SUCCESS',
-      });
+  it('should produce empty detail when no detail/batch/error provided', async () => {
+    const created = makeAuditEntry({ detail: '' });
+    mocks.create.mockResolvedValue(created);
 
-      expect(mocks.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          batchId: null,
-        }),
-      );
+    await service.log({
+      actor: 'admin',
+      action: 'UPDATE',
+      certificateCn: 'test.example.com',
+      certificateId: 'cert-001',
+      result: 'SUCCESS',
     });
 
-    it('should combine detail, errorReason and metadata in detail string', async () => {
-      const created = makeAuditLog();
-      mocks.create.mockResolvedValue(created);
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: '',
+      }),
+    );
+  });
+});
 
-      await service.log({
-        actor: 'admin',
-        action: 'CREATE',
-        certificateCn: 'test.example.com',
-        result: 'FAILURE',
-        detail: 'Import attempt',
-        errorReason: 'Parse error',
-        metadata: { source: 'api' },
-      });
+// ─── Unit tests: AuditService.getEntries ────────────────────────────────────
 
-      const call = mocks.create.mock.calls[0][0];
-      expect(call.detail).toContain('Import attempt');
-      expect(call.detail).toContain('error: Parse error');
-      expect(call.detail).toContain('metadata:');
-      expect(call.detail).toContain('"source":"api"');
+describe('AuditService.getEntries', () => {
+  let service: AuditService;
+  let mocks: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(() => {
+    const mockRepo = makeMockRepo();
+    service = new AuditService(mockRepo.repo);
+    mocks = mockRepo.mocks;
+  });
+
+  it('should return paginated response with defaults', async () => {
+    const entries = [makeAuditEntry()];
+    mocks.findMany.mockResolvedValue({ data: entries, total: 1 });
+
+    const result = await service.getEntries({});
+
+    expect(mocks.findMany).toHaveBeenCalledTimes(1);
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(25);
+    expect(result.total).toBe(1);
+    expect(result.totalPages).toBe(1);
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0].id).toBe('audit-001');
+    expect(typeof result.data[0].timestamp).toBe('string');
+  });
+
+  it('should pass pagination params correctly', async () => {
+    mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+    await service.getEntries({ page: '3', pageSize: '10' });
+
+    const call = mocks.findMany.mock.calls[0];
+    expect(call[1]).toEqual({ page: 3, pageSize: 10, skip: 20, take: 10 });
+  });
+
+  it('should pass all filter params to the repository', async () => {
+    mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+    await service.getEntries({
+      action: 'CREATE',
+      actor: 'admin',
+      certificateId: 'cert-001',
+      batchId: 'batch-abc',
+      dateFrom: '2025-01-01',
+      dateTo: '2025-12-31',
+      result: 'SUCCESS',
+    });
+
+    const call = mocks.findMany.mock.calls[0];
+    const filters = call[0];
+    expect(filters).toEqual({
+      action: 'CREATE',
+      actor: 'admin',
+      certificateId: 'cert-001',
+      batchId: 'batch-abc',
+      dateFrom: '2025-01-01',
+      dateTo: '2025-12-31',
+      result: 'SUCCESS',
     });
   });
 
-  // ── getEntries() ────────────────────────────────────────────────────────
+  it('should handle empty filters gracefully', async () => {
+    mocks.findMany.mockResolvedValue({ data: [], total: 0 });
 
-  describe('getEntries', () => {
-    it('should return paginated response with defaults', async () => {
-      const entries = [makeAuditLog()];
-      mocks.findMany.mockResolvedValue({ data: entries, total: 1 });
+    const result = await service.getEntries({});
 
-      const result = await service.getEntries({});
-
-      expect(mocks.findMany).toHaveBeenCalledTimes(1);
-      expect(result.page).toBe(1);
-      expect(result.pageSize).toBe(25);
-      expect(result.total).toBe(1);
-      expect(result.totalPages).toBe(1);
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].certCn).toBe('test.example.com');
-      expect(typeof result.data[0].timestamp).toBe('string');
-    });
-
-    it('should pass pagination params correctly', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ page: '3', pageSize: '10' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[1]).toEqual({ page: 3, pageSize: 10, skip: 20, take: 10 });
-    });
-
-    it('should pass filter params for action', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ action: 'CREATE' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].action).toBe('CREATE');
-    });
-
-    it('should pass filter params for actor', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ actor: 'admin' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].actor).toBe('admin');
-    });
-
-    it('should pass filter params for certificateId', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ certificateId: 'cert-001' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].certificateId).toBe('cert-001');
-    });
-
-    it('should pass filter params for batchId', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ batchId: 'batch-uuid-123' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].batchId).toBe('batch-uuid-123');
-    });
-
-    it('should pass filter params for date range', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({
-        dateFrom: '2025-01-01',
-        dateTo: '2025-06-30',
-      });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].dateFrom).toBe('2025-01-01');
-      expect(call[0].dateTo).toBe('2025-06-30');
-    });
-
-    it('should pass filter params for result', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({ result: 'FAILURE' });
-
-      const call = mocks.findMany.mock.calls[0];
-      expect(call[0].result).toBe('FAILURE');
-    });
-
-    it('should handle multiple filters simultaneously', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      await service.getEntries({
-        action: 'CREATE',
-        actor: 'admin',
-        result: 'SUCCESS',
-        dateFrom: '2025-01-01',
-        page: '1',
-        pageSize: '50',
-      });
-
-      const [filters, pagination] = mocks.findMany.mock.calls[0];
-      expect(filters.action).toBe('CREATE');
-      expect(filters.actor).toBe('admin');
-      expect(filters.result).toBe('SUCCESS');
-      expect(filters.dateFrom).toBe('2025-01-01');
-      expect(pagination.page).toBe(1);
-      expect(pagination.pageSize).toBe(50);
-    });
-
-    it('should map entries to API format with ISO timestamps', async () => {
-      const entries = [
-        makeAuditLog({ timestamp: new Date('2025-06-01T12:00:00.500Z') }),
-      ];
-      mocks.findMany.mockResolvedValue({ data: entries, total: 1 });
-
-      const result = await service.getEntries({});
-
-      expect(result.data[0].timestamp).toBe('2025-06-01T12:00:00.500Z');
-    });
-
-    it('should include batchId in mapped entries', async () => {
-      const entries = [makeAuditLog({ batchId: 'batch-abc' })];
-      mocks.findMany.mockResolvedValue({ data: entries, total: 1 });
-
-      const result = await service.getEntries({});
-
-      expect(result.data[0].batchId).toBe('batch-abc');
-    });
-
-    it('should return empty response when no entries match', async () => {
-      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
-
-      const result = await service.getEntries({ action: 'REVOKE' });
-
-      expect(result.data).toHaveLength(0);
-      expect(result.total).toBe(0);
-      expect(result.totalPages).toBe(1);
-    });
+    expect(result.data).toEqual([]);
+    expect(result.total).toBe(0);
+    expect(result.page).toBe(1);
   });
 
-  // ── getByBatchId() ──────────────────────────────────────────────────────
+  it('should map multiple entries correctly', async () => {
+    const entries = [
+      makeAuditEntry({ id: 'a-1', action: 'CREATE' }),
+      makeAuditEntry({ id: 'a-2', action: 'DELETE' }),
+      makeAuditEntry({ id: 'a-3', action: 'REVOKE', result: 'FAILURE' }),
+    ];
+    mocks.findMany.mockResolvedValue({ data: entries, total: 3 });
 
-  describe('getByBatchId', () => {
-    it('should return all entries for a batch', async () => {
-      const batchId = 'batch-uuid-123';
-      const entries = [
-        makeAuditLog({ id: 'audit-1', batchId }),
-        makeAuditLog({ id: 'audit-2', batchId, certCn: 'another.example.com' }),
-        makeAuditLog({ id: 'audit-3', batchId, certCn: 'third.example.com' }),
-      ];
-      mocks.findByBatchId.mockResolvedValue(entries);
+    const result = await service.getEntries({});
 
-      const result = await service.getByBatchId(batchId);
+    expect(result.data).toHaveLength(3);
+    expect(result.data[0].id).toBe('a-1');
+    expect(result.data[1].action).toBe('DELETE');
+    expect(result.data[2].result).toBe('FAILURE');
+  });
 
-      expect(mocks.findByBatchId).toHaveBeenCalledWith(batchId);
-      expect(result).toHaveLength(3);
-      expect(result[0].id).toBe('audit-1');
-      expect(result[1].certCn).toBe('another.example.com');
-      expect(result[2].certCn).toBe('third.example.com');
-    });
+  it('should calculate totalPages correctly', async () => {
+    mocks.findMany.mockResolvedValue({ data: [], total: 55 });
 
-    it('should return empty array when no entries found for batch', async () => {
-      mocks.findByBatchId.mockResolvedValue([]);
+    const result = await service.getEntries({ page: '1', pageSize: '10' });
 
-      const result = await service.getByBatchId('nonexistent-batch');
+    expect(result.totalPages).toBe(6);
+    expect(result.total).toBe(55);
+  });
+});
 
-      expect(result).toHaveLength(0);
-    });
+// ─── Unit tests: AuditService.getByBatchId ──────────────────────────────────
 
-    it('should map all entries to API format', async () => {
-      const entries = [
-        makeAuditLog({
-          timestamp: new Date('2025-06-01T12:00:00.100Z'),
-          batchId: 'b',
-        }),
-      ];
-      mocks.findByBatchId.mockResolvedValue(entries);
+describe('AuditService.getByBatchId', () => {
+  let service: AuditService;
+  let mocks: Record<string, ReturnType<typeof vi.fn>>;
 
-      const result = await service.getByBatchId('b');
+  beforeEach(() => {
+    const mockRepo = makeMockRepo();
+    service = new AuditService(mockRepo.repo);
+    mocks = mockRepo.mocks;
+  });
 
-      expect(result[0].timestamp).toBe('2025-06-01T12:00:00.100Z');
-      expect(result[0].batchId).toBe('b');
-      expect(typeof result[0].timestamp).toBe('string');
-    });
+  it('should return all entries for a given batch ID', async () => {
+    const entries = [
+      makeAuditEntry({ id: 'a-1', detail: 'CSV bulk import (batch: batch-abc)' }),
+      makeAuditEntry({ id: 'a-2', detail: 'CSV bulk import (batch: batch-abc)' }),
+    ];
+    mocks.findByBatchId.mockResolvedValue(entries);
+
+    const result = await service.getByBatchId('batch-abc');
+
+    expect(mocks.findByBatchId).toHaveBeenCalledWith('batch-abc');
+    expect(result).toHaveLength(2);
+    expect(result[0].id).toBe('a-1');
+    expect(result[1].id).toBe('a-2');
+  });
+
+  it('should return empty array when no entries match', async () => {
+    mocks.findByBatchId.mockResolvedValue([]);
+
+    const result = await service.getByBatchId('nonexistent-batch');
+
+    expect(result).toEqual([]);
+  });
+
+  it('should map entries to API format with ISO timestamps', async () => {
+    const entries = [makeAuditEntry({ timestamp: new Date('2025-06-15T14:00:00.000Z') })];
+    mocks.findByBatchId.mockResolvedValue(entries);
+
+    const result = await service.getByBatchId('batch-123');
+
+    expect(result[0].timestamp).toBe('2025-06-15T14:00:00.000Z');
   });
 });

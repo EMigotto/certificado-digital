@@ -6,6 +6,10 @@
   "main": "./types/index.ts",
   "types": "./types/index.ts",
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc -b && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.1.3"
   }
 }

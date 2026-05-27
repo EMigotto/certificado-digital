@@ -15,19 +15,29 @@ function makeCert(overrides: Partial<Certificate> = {}): Certificate {
   return {
     id: 'cert-001',
     commonName: 'test.example.com',
+    subjectDn: 'CN=test.example.com, O=Corp, C=BR',
+    issuerDn: 'CN=Test CA, O=Test, C=BR',
     sans: ['test.example.com', 'www.example.com'],
-    serial: 'AABBCCDD',
-    issuer: 'CN=Test CA',
+    serialNumber: 'AABBCCDD',
     notBefore: new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000),
     notAfter: new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000),
-    algorithm: 'RSA-2048',
-    fingerprintSha256: 'ab:cd:ef:12:34:56',
+    status: 'VALID',
+    signatureAlgorithm: 'SHA256withRSA',
+    keySize: 2048,
+    fingerprintSha256: 'AB:CD:EF:12:34:56',
+    fingerprintSha1: 'AA:BB:CC:DD:EE',
     owner: 'teamA',
+    team: 'Platform Engineering',
     application: 'api-gateway',
-    environment: 'prd',
+    environment: 'PRD',
     zone: 'us-east-1',
-    caProvider: 'DigiCert',
+    caName: 'DigiCert',
+    caProvider: 'DigiCert CertCentral',
+    importSource: 'MANUAL',
+    sourceFile: null,
     revoked: false,
+    revokedAt: null,
+    revocationReason: null,
     tags: { team: 'platform' },
     customFields: {},
     description: 'Test cert',
@@ -46,9 +56,9 @@ function makeMockRepo(): {
     findMany: vi.fn(),
     findById: vi.fn(),
     softDelete: vi.fn(),
-    createAuditLog: vi.fn(),
+    createAuditEntry: vi.fn(),
     getDistinctEnvironments: vi.fn(),
-    getDistinctCaProviders: vi.fn(),
+    getDistinctCaNames: vi.fn(),
     getDistinctOwners: vi.fn(),
     getDistinctAlgorithms: vi.fn(),
     getDistinctTagKeys: vi.fn(),
@@ -65,26 +75,26 @@ function makeMockRepo(): {
 // ─── Unit tests: helper functions ────────────────────────────────────────────
 
 describe('computeStatus', () => {
-  it('should return "revoked" when cert is revoked', () => {
+  it('should return "REVOKED" when cert is revoked', () => {
     expect(computeStatus({ revoked: true, notAfter: new Date(Date.now() + 999999999) })).toBe(
-      'revoked',
+      'REVOKED',
     );
   });
 
-  it('should return "expired" when notAfter is in the past', () => {
+  it('should return "EXPIRED" when notAfter is in the past', () => {
     expect(computeStatus({ revoked: false, notAfter: new Date(Date.now() - 1000) })).toBe(
-      'expired',
+      'EXPIRED',
     );
   });
 
-  it('should return "expiring" when notAfter is within 30 days', () => {
+  it('should return "EXPIRING_SOON" when notAfter is within 30 days', () => {
     const in15Days = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000);
-    expect(computeStatus({ revoked: false, notAfter: in15Days })).toBe('expiring');
+    expect(computeStatus({ revoked: false, notAfter: in15Days })).toBe('EXPIRING_SOON');
   });
 
-  it('should return "active" when notAfter is more than 30 days away', () => {
+  it('should return "VALID" when notAfter is more than 30 days away', () => {
     const in60Days = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000);
-    expect(computeStatus({ revoked: false, notAfter: in60Days })).toBe('active');
+    expect(computeStatus({ revoked: false, notAfter: in60Days })).toBe('VALID');
   });
 });
 
@@ -112,22 +122,30 @@ describe('mapToApiCertificate', () => {
     expect(result.id).toBe('cert-001');
     expect(result.commonName).toBe('test.example.com');
     expect(result.sans).toEqual(['test.example.com', 'www.example.com']);
-    expect(result.status).toBe('active');
+    expect(result.status).toBe('VALID');
     expect(result.daysUntilExpiry).toBeGreaterThan(0);
     expect(typeof result.notBefore).toBe('string');
     expect(typeof result.notAfter).toBe('string');
     expect(typeof result.createdAt).toBe('string');
     expect(typeof result.updatedAt).toBe('string');
+    // New fields
+    expect(result.serialNumber).toBe('AABBCCDD');
+    expect(result.signatureAlgorithm).toBe('SHA256withRSA');
+    expect(result.caName).toBe('DigiCert');
+    expect(result.environment).toBe('PRD');
   });
 
   it('should map revoked cert correctly', () => {
     const cert = makeCert({ revoked: true });
     const result = mapToApiCertificate(cert);
-    expect(result.status).toBe('revoked');
+    expect(result.status).toBe('REVOKED');
   });
 
   it('should handle null tags/customFields gracefully', () => {
-    const cert = makeCert({ tags: null as unknown as object, customFields: null as unknown as object });
+    const cert = makeCert({
+      tags: null as unknown as object,
+      customFields: null as unknown as object,
+    });
     const result = mapToApiCertificate(cert);
     expect(result.tags).toEqual({});
     expect(result.customFields).toEqual({});
@@ -193,16 +211,16 @@ describe('CertificateService', () => {
       mocks.findMany.mockResolvedValue({ data: [], total: 0 });
 
       await service.listCertificates({
-        environment: 'dev,prd',
+        environment: 'DEV,PRD',
         ca: 'DigiCert,LetsEncrypt',
-        status: 'active,expiring',
+        status: 'VALID,EXPIRING_SOON',
       });
 
       const call = mocks.findMany.mock.calls[0];
       const filters = call[0];
-      expect(filters.environment).toEqual(['dev', 'prd']);
+      expect(filters.environment).toEqual(['DEV', 'PRD']);
       expect(filters.ca).toEqual(['DigiCert', 'LetsEncrypt']);
-      expect(filters.status).toEqual(['active', 'expiring']);
+      expect(filters.status).toEqual(['VALID', 'EXPIRING_SOON']);
     });
 
     it('should parse tags filter correctly', async () => {
@@ -224,7 +242,7 @@ describe('CertificateService', () => {
 
       expect(result).not.toBeNull();
       expect(result!.id).toBe('cert-001');
-      expect(result!.status).toBe('active');
+      expect(result!.status).toBe('VALID');
       expect(result!.daysUntilExpiry).toBeGreaterThan(0);
     });
 
@@ -292,21 +310,21 @@ describe('CertificateService', () => {
   });
 
   describe('deleteCertificate', () => {
-    it('should soft-delete and create audit log', async () => {
+    it('should soft-delete and create audit entry', async () => {
       const cert = makeCert();
       const revokedCert = makeCert({ revoked: true });
       mocks.findById.mockResolvedValue(cert);
       mocks.softDelete.mockResolvedValue(revokedCert);
-      mocks.createAuditLog.mockResolvedValue(undefined);
+      mocks.createAuditEntry.mockResolvedValue(undefined);
 
       const result = await service.deleteCertificate('cert-001', 'admin');
 
       expect(result).not.toBeNull();
-      expect(result!.status).toBe('revoked');
+      expect(result!.status).toBe('REVOKED');
       expect(mocks.softDelete).toHaveBeenCalledWith('cert-001');
-      expect(mocks.createAuditLog).toHaveBeenCalledWith(
+      expect(mocks.createAuditEntry).toHaveBeenCalledWith(
         expect.objectContaining({
-          certId: 'cert-001',
+          certificateId: 'cert-001',
           action: 'REVOKE',
           actor: 'admin',
           result: 'SUCCESS',
@@ -326,19 +344,19 @@ describe('CertificateService', () => {
 
   describe('getFilterMeta', () => {
     it('should return aggregated filter metadata', async () => {
-      mocks.getDistinctEnvironments.mockResolvedValue(['dev', 'prd']);
-      mocks.getDistinctCaProviders.mockResolvedValue(['DigiCert', 'LetsEncrypt']);
+      mocks.getDistinctEnvironments.mockResolvedValue(['DEV', 'PRD']);
+      mocks.getDistinctCaNames.mockResolvedValue(['DigiCert', 'LetsEncrypt']);
       mocks.getDistinctOwners.mockResolvedValue(['teamA', 'teamB']);
-      mocks.getDistinctAlgorithms.mockResolvedValue(['RSA-2048', 'ECDSA-256']);
+      mocks.getDistinctAlgorithms.mockResolvedValue(['SHA256withRSA', 'SHA256withECDSA']);
       mocks.getDistinctTagKeys.mockResolvedValue(['team', 'env']);
 
       const result = await service.getFilterMeta();
 
-      expect(result.environments).toEqual(['dev', 'prd']);
-      expect(result.caProviders).toEqual(['DigiCert', 'LetsEncrypt']);
-      expect(result.statuses).toEqual(['active', 'expiring', 'expired', 'revoked']);
+      expect(result.environments).toEqual(['DEV', 'PRD']);
+      expect(result.caNames).toEqual(['DigiCert', 'LetsEncrypt']);
+      expect(result.statuses).toEqual(['VALID', 'EXPIRING_SOON', 'EXPIRED', 'REVOKED']);
       expect(result.owners).toEqual(['teamA', 'teamB']);
-      expect(result.algorithms).toEqual(['RSA-2048', 'ECDSA-256']);
+      expect(result.algorithms).toEqual(['SHA256withRSA', 'SHA256withECDSA']);
       expect(result.tagKeys).toEqual(['team', 'env']);
     });
   });

@@ -24,7 +24,7 @@ export interface ImportMetadata {
 export interface DuplicateInfo {
   existingId: string;
   commonName: string;
-  issuer: string;
+  issuerDn: string | null;
   fingerprintSha256: string;
   matchType: 'fingerprint' | 'cn_issuer';
 }
@@ -87,8 +87,8 @@ export class ImportService {
 
     if (!parseResult.ok) {
       // Log failed import attempt
-      await this.createAuditLog({
-        certId: null,
+      await this.createAuditEntry({
+        certificateId: null,
         certCn: filename,
         action: 'CREATE',
         actor,
@@ -115,7 +115,7 @@ export class ImportService {
         duplicate: {
           existingId: dupByFingerprint.id,
           commonName: dupByFingerprint.commonName,
-          issuer: dupByFingerprint.issuer,
+          issuerDn: dupByFingerprint.issuerDn,
           fingerprintSha256: dupByFingerprint.fingerprintSha256,
           matchType: 'fingerprint',
         },
@@ -126,7 +126,7 @@ export class ImportService {
     const dupByCnIssuer = await this.prisma.certificate.findFirst({
       where: {
         commonName: parsed.commonName,
-        issuer: parsed.issuer,
+        issuerDn: parsed.issuer,
       },
     });
 
@@ -136,7 +136,7 @@ export class ImportService {
         duplicate: {
           existingId: dupByCnIssuer.id,
           commonName: dupByCnIssuer.commonName,
-          issuer: dupByCnIssuer.issuer,
+          issuerDn: dupByCnIssuer.issuerDn,
           fingerprintSha256: dupByCnIssuer.fingerprintSha256,
           matchType: 'cn_issuer',
         },
@@ -148,23 +148,25 @@ export class ImportService {
       data: {
         commonName: parsed.commonName,
         sans: parsed.sans,
-        serial: parsed.serial,
-        issuer: parsed.issuer,
+        serialNumber: parsed.serial,
+        issuerDn: parsed.issuer,
         notBefore: parsed.notBefore,
         notAfter: parsed.notAfter,
-        algorithm: parsed.algorithm,
+        signatureAlgorithm: parsed.algorithm,
         fingerprintSha256: parsed.fingerprintSha256,
         pemData: parsed.pemData,
         owner: metadata.owner ?? '',
-        environment: validateEnvironment(metadata.environment) ?? 'dev',
+        environment: validateEnvironment(metadata.environment) ?? 'DEV',
         application: metadata.application ?? '',
+        caName: parsed.issuer.split(',')[0]?.replace('CN=', '').trim() || 'Unknown',
         tags: metadata.tags ?? {},
+        importSource: 'CERTIFICATE_FILE',
       },
     });
 
     // 5. Create audit entry
-    const auditLog = await this.createAuditLog({
-      certId: cert.id,
+    const auditEntry = await this.createAuditEntry({
+      certificateId: cert.id,
       certCn: cert.commonName,
       action: 'CREATE',
       actor,
@@ -172,7 +174,7 @@ export class ImportService {
       detail: `Certificate imported from file: ${filename}`,
     });
 
-    return { status: 'created', certificate: cert, auditId: auditLog.id };
+    return { status: 'created', certificate: cert, auditId: auditEntry.id };
   }
 
   /**
@@ -209,7 +211,7 @@ export class ImportService {
       const existing = await this.prisma.certificate.findFirst({
         where: {
           commonName: row.data.cn,
-          issuer: row.data.issuer,
+          issuerDn: row.data.issuer,
         },
       });
 
@@ -238,8 +240,7 @@ export class ImportService {
   }
 
   /**
-   * Execute CSV import — insert valid rows in batches of 500 using
-   * createMany for performance (single bulk INSERT per batch).
+   * Execute CSV import — insert valid rows in batches.
    * Skips rows with errors or duplicates.
    */
   async executeCsvImport(csvContent: string, actor: string = 'system'): Promise<CsvImportSummary> {
@@ -265,26 +266,31 @@ export class ImportService {
       const batch = validRows.slice(i, i + BATCH_SIZE);
 
       const data = batch.map((row) => {
-        const env = validateEnvironment(row.data.environment) ?? 'dev';
+        const env = validateEnvironment(row.data.environment) ?? 'DEV';
         return {
           commonName: row.data.cn,
           sans: row.data.sans,
-          serial: row.data.serial || crypto.randomUUID(),
-          issuer: row.data.issuer,
+          serialNumber: row.data.serial || crypto.randomUUID(),
+          issuerDn: row.data.issuer,
           notBefore: row.data.notBefore ? new Date(row.data.notBefore) : new Date(),
           notAfter: row.data.notAfter
             ? new Date(row.data.notAfter)
             : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          algorithm: row.data.algorithm || 'unknown',
+          signatureAlgorithm: row.data.algorithm || 'unknown',
           fingerprintSha256:
             row.data.fingerprintSha256 || generateMetadataFingerprint(row.data),
           owner: row.data.owner,
           environment: env,
           application: row.data.application,
           zone: row.data.zone,
+          caName:
+            row.data.caProvider ||
+            row.data.issuer.split(',')[0]?.replace('CN=', '').trim() ||
+            'Unknown',
           caProvider: row.data.caProvider,
           description: row.data.description,
           tags: row.data.tags,
+          importSource: 'CSV_IMPORT' as const,
         };
       });
 
@@ -293,10 +299,10 @@ export class ImportService {
         imported += result.count;
 
         // Batch audit entry (one per chunk — avoids N+1 audit writes)
-        await this.createAuditLog({
-          certId: null,
+        await this.createAuditEntry({
+          certificateId: null,
           certCn: `CSV Import Batch ${batchId}`,
-          action: 'CREATE',
+          action: 'IMPORT',
           actor,
           result: 'SUCCESS',
           detail: `CSV bulk import chunk: ${result.count} certificates (batch: ${batchId})`,
@@ -317,10 +323,10 @@ export class ImportService {
     }
 
     // Log batch summary
-    await this.createAuditLog({
-      certId: null,
+    await this.createAuditEntry({
+      certificateId: null,
       certCn: `CSV Import Batch ${batchId}`,
-      action: 'CREATE',
+      action: 'IMPORT',
       actor,
       result: imported > 0 ? 'SUCCESS' : 'FAILURE',
       detail: `CSV bulk import complete. Imported: ${imported}, Failed: ${failedRows.length}, Batch ID: ${batchId}`,
@@ -335,17 +341,17 @@ export class ImportService {
   }
 
   /**
-   * Create an audit log entry. Returns the created entry.
+   * Create an audit entry. Returns the created entry.
    */
-  private async createAuditLog(entry: {
-    certId: string | null;
+  private async createAuditEntry(entry: {
+    certificateId: string | null;
     certCn: string;
-    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'REVOKE';
+    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'REVOKE' | 'IMPORT' | 'EXPORT' | 'IMPORT' | 'EXPORT';
     actor: string;
     result: 'SUCCESS' | 'FAILURE';
     detail: string;
   }) {
-    return this.prisma.auditLog.create({ data: entry });
+    return this.prisma.auditEntry.create({ data: entry });
   }
 }
 
@@ -354,9 +360,9 @@ export class ImportService {
 /**
  * Validate environment string and return the Prisma-compatible enum value.
  */
-function validateEnvironment(env?: string): 'dev' | 'hml' | 'prd' | null {
-  const normalized = env?.trim().toLowerCase();
-  if (normalized === 'dev' || normalized === 'hml' || normalized === 'prd') {
+function validateEnvironment(env?: string): 'DEV' | 'HML' | 'PRD' | null {
+  const normalized = env?.trim().toUpperCase();
+  if (normalized === 'DEV' || normalized === 'HML' || normalized === 'PRD') {
     return normalized;
   }
   return null;

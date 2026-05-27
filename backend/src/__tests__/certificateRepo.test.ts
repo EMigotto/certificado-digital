@@ -30,7 +30,7 @@ describe('CertificateRepository.buildWhereClause', () => {
     const where = repo.buildWhereClause({ q: 'test' });
     expect(where).toHaveProperty('OR');
     const orConditions = (where as { OR: unknown[] }).OR;
-    expect(orConditions.length).toBeGreaterThanOrEqual(4); // CN, serial, owner, application, sans...
+    expect(orConditions.length).toBeGreaterThanOrEqual(4); // CN, serialNumber, owner, application, sans...
   });
 
   it('should build expiresIn filter for <7d', () => {
@@ -54,17 +54,17 @@ describe('CertificateRepository.buildWhereClause', () => {
   });
 
   it('should build environment filter with IN clause', () => {
-    const where = repo.buildWhereClause({ environment: ['dev', 'prd'] });
+    const where = repo.buildWhereClause({ environment: ['DEV', 'PRD'] });
     expect(where).toHaveProperty('environment');
   });
 
-  it('should build CA provider filter', () => {
+  it('should build CA filter', () => {
     const where = repo.buildWhereClause({ ca: ['DigiCert'] });
-    expect(where).toHaveProperty('caProvider');
+    expect(where).toHaveProperty('OR');
   });
 
   it('should build status filter with OR for multiple statuses', () => {
-    const where = repo.buildWhereClause({ status: ['active', 'expired'] });
+    const where = repo.buildWhereClause({ status: ['VALID', 'EXPIRED'] });
     expect(where).toHaveProperty('OR');
   });
 
@@ -73,15 +73,15 @@ describe('CertificateRepository.buildWhereClause', () => {
     expect(where).toHaveProperty('owner');
   });
 
-  it('should build algorithm filter', () => {
-    const where = repo.buildWhereClause({ algorithm: ['RSA-2048'] });
-    expect(where).toHaveProperty('algorithm');
+  it('should build algorithm filter against signatureAlgorithm', () => {
+    const where = repo.buildWhereClause({ algorithm: ['SHA256withRSA'] });
+    expect(where).toHaveProperty('signatureAlgorithm');
   });
 
   it('should compose multiple filters with AND', () => {
     const where = repo.buildWhereClause({
       q: 'test',
-      environment: ['dev'],
+      environment: ['DEV'],
       ca: ['DigiCert'],
     });
     expect(where).toHaveProperty('AND');
@@ -125,8 +125,8 @@ describe('CertificateRepository.buildOrderBy', () => {
     expect(orderBy).toEqual({ owner: 'asc' });
   });
 
-  it('should sort by caProvider', () => {
-    const orderBy = repo.buildOrderBy({ sort: 'caProvider', sortDir: 'asc' });
-    expect(orderBy).toEqual({ caProvider: 'asc' });
+  it('should sort by caName', () => {
+    const orderBy = repo.buildOrderBy({ sort: 'caName', sortDir: 'asc' });
+    expect(orderBy).toEqual({ caName: 'asc' });
   });
 });

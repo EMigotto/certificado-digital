@@ -10,7 +10,7 @@ export interface CertificateFilters {
   expiresIn?: string;
   /** Filter by environment(s) — OR within */
   environment?: string[];
-  /** Filter by CA provider(s) — OR within */
+  /** Filter by CA name(s) — OR within */
   ca?: string[];
   /** Filter by computed status(es) — OR within */
   status?: string[];
@@ -32,16 +32,21 @@ export interface SortParams {
 const SORTABLE_COLUMNS: Record<string, string> = {
   commonName: 'common_name',
   common_name: 'common_name',
-  serial: 'serial',
-  issuer: 'issuer',
+  serialNumber: 'serial_number',
+  serial_number: 'serial_number',
+  issuerDn: 'issuer_dn',
+  issuer_dn: 'issuer_dn',
   notBefore: 'not_before',
   not_before: 'not_before',
   notAfter: 'not_after',
   not_after: 'not_after',
-  algorithm: 'algorithm',
+  signatureAlgorithm: 'signature_algorithm',
+  signature_algorithm: 'signature_algorithm',
   owner: 'owner',
   application: 'application',
   environment: 'environment',
+  caName: 'ca_name',
+  ca_name: 'ca_name',
   caProvider: 'ca_provider',
   ca_provider: 'ca_provider',
   createdAt: 'created_at',
@@ -67,7 +72,7 @@ export class CertificateRepository {
       conditions.push({
         OR: [
           { commonName: { contains: q, mode: 'insensitive' } },
-          { serial: { contains: q, mode: 'insensitive' } },
+          { serialNumber: { contains: q, mode: 'insensitive' } },
           { owner: { contains: q, mode: 'insensitive' } },
           { application: { contains: q, mode: 'insensitive' } },
           { sans: { has: q } },
@@ -123,14 +128,14 @@ export class CertificateRepository {
       });
     }
 
-    // CA provider filter (OR within)
+    // CA filter — searches both caName and caProvider (OR within)
     if (filters.ca && filters.ca.length > 0) {
       conditions.push({
-        caProvider: { in: filters.ca },
+        OR: [{ caName: { in: filters.ca } }, { caProvider: { in: filters.ca } }],
       });
     }
 
-    // Status filter (computed: active, expiring, expired, revoked)
+    // Status filter (computed: VALID, EXPIRING_SOON, EXPIRED, REVOKED)
     if (filters.status && filters.status.length > 0) {
       const statusConditions: Prisma.CertificateWhereInput[] = [];
       const now = new Date();
@@ -138,18 +143,22 @@ export class CertificateRepository {
 
       for (const status of filters.status) {
         switch (status) {
+          case 'REVOKED':
           case 'revoked':
             statusConditions.push({ revoked: true });
             break;
+          case 'EXPIRED':
           case 'expired':
             statusConditions.push({ revoked: false, notAfter: { lt: now } });
             break;
+          case 'EXPIRING_SOON':
           case 'expiring':
             statusConditions.push({
               revoked: false,
               notAfter: { gte: now, lte: d30 },
             });
             break;
+          case 'VALID':
           case 'active':
             statusConditions.push({
               revoked: false,
@@ -173,7 +182,7 @@ export class CertificateRepository {
     // Algorithm filter (OR within)
     if (filters.algorithm && filters.algorithm.length > 0) {
       conditions.push({
-        algorithm: { in: filters.algorithm },
+        signatureAlgorithm: { in: filters.algorithm },
       });
     }
 
@@ -203,8 +212,12 @@ export class CertificateRepository {
     // Map snake_case DB column back to Prisma camelCase field
     const fieldMap: Record<string, string> = {
       common_name: 'commonName',
+      serial_number: 'serialNumber',
+      issuer_dn: 'issuerDn',
       not_before: 'notBefore',
       not_after: 'notAfter',
+      signature_algorithm: 'signatureAlgorithm',
+      ca_name: 'caName',
       ca_provider: 'caProvider',
       created_at: 'createdAt',
       updated_at: 'updatedAt',
@@ -250,35 +263,34 @@ export class CertificateRepository {
   async softDelete(id: string): Promise<Certificate> {
     return this.prisma.certificate.update({
       where: { id },
-      data: { revoked: true },
+      data: { revoked: true, revokedAt: new Date(), status: 'REVOKED' },
     });
   }
 
   /**
-   * Create an audit log entry.
+   * Create an audit entry.
    */
-  async createAuditLog(entry: {
-    certId: string | null;
+  async createAuditEntry(entry: {
+    certificateId: string | null;
     certCn: string;
     action: 'CREATE' | 'UPDATE' | 'DELETE' | 'REVOKE';
     actor: string;
     result: 'SUCCESS' | 'FAILURE';
     detail: string;
   }): Promise<void> {
-    await this.prisma.auditLog.create({ data: entry });
+    await this.prisma.auditEntry.create({ data: entry });
   }
 
   /**
    * Get distinct values for filter dropdowns.
    */
-  async getDistinctCaProviders(): Promise<string[]> {
+  async getDistinctCaNames(): Promise<string[]> {
     const rows = await this.prisma.certificate.findMany({
-      distinct: ['caProvider'],
-      select: { caProvider: true },
-      where: { caProvider: { not: '' } },
-      orderBy: { caProvider: 'asc' },
+      distinct: ['caName'],
+      select: { caName: true },
+      orderBy: { caName: 'asc' },
     });
-    return rows.map((r) => r.caProvider);
+    return rows.map((r) => r.caName);
   }
 
   async getDistinctEnvironments(): Promise<string[]> {
@@ -302,11 +314,11 @@ export class CertificateRepository {
 
   async getDistinctAlgorithms(): Promise<string[]> {
     const rows = await this.prisma.certificate.findMany({
-      distinct: ['algorithm'],
-      select: { algorithm: true },
-      orderBy: { algorithm: 'asc' },
+      distinct: ['signatureAlgorithm'],
+      select: { signatureAlgorithm: true },
+      orderBy: { signatureAlgorithm: 'asc' },
     });
-    return rows.map((r) => r.algorithm);
+    return rows.map((r) => r.signatureAlgorithm);
   }
 
   /**

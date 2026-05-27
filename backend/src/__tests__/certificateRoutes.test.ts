@@ -8,14 +8,14 @@ const {
   mockFindUnique,
   mockCount,
   mockUpdate,
-  mockCreateAuditLog,
+  mockCreateAuditEntry,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockFindUnique: vi.fn(),
   mockCount: vi.fn(),
   mockUpdate: vi.fn(),
-  mockCreateAuditLog: vi.fn(),
+  mockCreateAuditEntry: vi.fn(),
   mockTransaction: vi.fn(),
 }));
 
@@ -27,8 +27,8 @@ vi.mock('../prismaClient.js', () => ({
       count: mockCount,
       update: mockUpdate,
     },
-    auditLog: {
-      create: mockCreateAuditLog,
+    auditEntry: {
+      create: mockCreateAuditEntry,
     },
     $transaction: mockTransaction,
   },
@@ -46,19 +46,29 @@ function makePrismaCert(overrides: Record<string, unknown> = {}) {
   return {
     id: '550e8400-e29b-41d4-a716-446655440000',
     commonName: 'api.example.com',
+    subjectDn: 'CN=api.example.com, O=Corp, C=BR',
+    issuerDn: 'CN=Test CA, O=Test, C=BR',
     sans: ['api.example.com', 'www.example.com'],
-    serial: 'AA:BB:CC:DD',
-    issuer: 'CN=Test CA',
+    serialNumber: 'AA:BB:CC:DD',
     notBefore: PAST,
     notAfter: FUTURE,
-    algorithm: 'RSA-2048',
+    status: 'VALID',
+    signatureAlgorithm: 'SHA256withRSA',
+    keySize: 2048,
     fingerprintSha256: 'ab:cd:ef',
+    fingerprintSha1: 'aa:bb:cc',
     owner: 'teamA',
+    team: 'Platform Engineering',
     application: 'api-gateway',
-    environment: 'prd',
+    environment: 'PRD',
     zone: 'us-east-1',
-    caProvider: 'DigiCert',
+    caName: 'DigiCert',
+    caProvider: 'DigiCert CertCentral',
+    importSource: 'MANUAL',
+    sourceFile: null,
     revoked: false,
+    revokedAt: null,
+    revocationReason: null,
     tags: { team: 'platform' },
     customFields: {},
     description: 'Test',
@@ -105,7 +115,7 @@ describe('Certificate Routes', () => {
       expect(body.pageSize).toBe(25);
       expect(body.totalPages).toBe(1);
       expect(body.data[0].commonName).toBe('api.example.com');
-      expect(body.data[0].status).toBe('active');
+      expect(body.data[0].status).toBe('VALID');
       expect(body.data[0].daysUntilExpiry).toBeGreaterThan(0);
     });
 
@@ -139,7 +149,7 @@ describe('Certificate Routes', () => {
 
       const response = await server.inject({
         method: 'GET',
-        url: '/api/certificates?environment=dev,prd&ca=DigiCert&status=active',
+        url: '/api/certificates?environment=DEV,PRD&ca=DigiCert&status=VALID',
       });
 
       expect(response.statusCode).toBe(200);
@@ -173,7 +183,7 @@ describe('Certificate Routes', () => {
       const body = JSON.parse(response.payload);
       expect(body.id).toBe('550e8400-e29b-41d4-a716-446655440000');
       expect(body.commonName).toBe('api.example.com');
-      expect(body.status).toBe('active');
+      expect(body.status).toBe('VALID');
       expect(body.daysUntilExpiry).toBeGreaterThan(0);
     });
 
@@ -254,7 +264,7 @@ describe('Certificate Routes', () => {
       const revokedCert = makePrismaCert({ revoked: true });
       mockFindUnique.mockResolvedValue(cert);
       mockUpdate.mockResolvedValue(revokedCert);
-      mockCreateAuditLog.mockResolvedValue({});
+      mockCreateAuditEntry.mockResolvedValue({});
 
       const response = await server.inject({
         method: 'DELETE',
@@ -263,7 +273,7 @@ describe('Certificate Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.payload);
-      expect(body.status).toBe('revoked');
+      expect(body.status).toBe('REVOKED');
       expect(body.revoked).toBe(true);
     });
 
@@ -285,10 +295,10 @@ describe('Certificate Routes', () => {
     it('should return filter metadata', async () => {
       // Mock all distinct queries
       mockFindMany
-        .mockResolvedValueOnce([{ environment: 'dev' }, { environment: 'prd' }]) // environments
-        .mockResolvedValueOnce([{ caProvider: 'DigiCert' }]) // caProviders
+        .mockResolvedValueOnce([{ environment: 'DEV' }, { environment: 'PRD' }]) // environments
+        .mockResolvedValueOnce([{ caName: 'DigiCert' }]) // caNames
         .mockResolvedValueOnce([{ owner: 'teamA' }]) // owners
-        .mockResolvedValueOnce([{ algorithm: 'RSA-2048' }]) // algorithms
+        .mockResolvedValueOnce([{ signatureAlgorithm: 'SHA256withRSA' }]) // algorithms
         .mockResolvedValueOnce([{ tags: { team: 'platform' } }]); // tags
 
       const response = await server.inject({
@@ -298,11 +308,11 @@ describe('Certificate Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.payload);
-      expect(body.environments).toEqual(['dev', 'prd']);
-      expect(body.caProviders).toEqual(['DigiCert']);
-      expect(body.statuses).toEqual(['active', 'expiring', 'expired', 'revoked']);
+      expect(body.environments).toEqual(['DEV', 'PRD']);
+      expect(body.caNames).toEqual(['DigiCert']);
+      expect(body.statuses).toEqual(['VALID', 'EXPIRING_SOON', 'EXPIRED', 'REVOKED']);
       expect(body.owners).toEqual(['teamA']);
-      expect(body.algorithms).toEqual(['RSA-2048']);
+      expect(body.algorithms).toEqual(['SHA256withRSA']);
       expect(body.tagKeys).toEqual(['team']);
     });
   });

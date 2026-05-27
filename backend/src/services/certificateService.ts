@@ -1,10 +1,10 @@
 import type { Certificate as PrismaCert } from '@prisma/client';
-import type {
-  Certificate,
-  CertificateStatus,
-  PaginatedResponse,
-} from '@certificado-digital/shared';
-import { CertificateRepository, type CertificateFilters, type SortParams } from '../repositories/certificateRepo.js';
+import type { Certificate, CertStatus, PaginatedResponse } from '@certificado-digital/shared';
+import {
+  CertificateRepository,
+  type CertificateFilters,
+  type SortParams,
+} from '../repositories/certificateRepo.js';
 import { parsePaginationParams, buildPaginatedResponse } from '../utils/pagination.js';
 
 // ─── Query param types ───────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ export interface ListCertificatesQuery {
 
 export interface FilterMeta {
   environments: string[];
-  caProviders: string[];
+  caNames: string[];
   statuses: string[];
   owners: string[];
   algorithms: string[];
@@ -44,13 +44,13 @@ export interface ExportResult {
 /**
  * Compute certificate status from its fields.
  */
-export function computeStatus(cert: { revoked: boolean; notAfter: Date }): CertificateStatus {
-  if (cert.revoked) return 'revoked';
+export function computeStatus(cert: { revoked: boolean; notAfter: Date }): CertStatus {
+  if (cert.revoked) return 'REVOKED';
   const now = new Date();
-  if (cert.notAfter < now) return 'expired';
+  if (cert.notAfter < now) return 'EXPIRED';
   const d30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  if (cert.notAfter <= d30) return 'expiring';
-  return 'active';
+  if (cert.notAfter <= d30) return 'EXPIRING_SOON';
+  return 'VALID';
 }
 
 /**
@@ -63,33 +63,42 @@ export function computeDaysUntilExpiry(notAfter: Date): number {
 }
 
 /**
- * Map Prisma Certificate to shared Certificate type (ISO strings + status).
+ * Map Prisma Certificate to shared Certificate type (ISO strings + computed status).
  */
 export function mapToApiCertificate(
   cert: PrismaCert,
-): Certificate & { status: CertificateStatus; daysUntilExpiry: number } {
+): Certificate & { daysUntilExpiry: number } {
   return {
     id: cert.id,
     commonName: cert.commonName,
+    subjectDn: cert.subjectDn,
+    issuerDn: cert.issuerDn,
     sans: cert.sans,
-    serial: cert.serial,
-    issuer: cert.issuer,
+    serialNumber: cert.serialNumber,
     notBefore: cert.notBefore.toISOString(),
     notAfter: cert.notAfter.toISOString(),
-    algorithm: cert.algorithm,
+    status: computeStatus(cert),
+    signatureAlgorithm: cert.signatureAlgorithm,
+    keySize: cert.keySize,
     fingerprintSha256: cert.fingerprintSha256,
+    fingerprintSha1: cert.fingerprintSha1,
     owner: cert.owner,
+    team: cert.team,
     application: cert.application,
     environment: cert.environment,
     zone: cert.zone,
+    caName: cert.caName,
     caProvider: cert.caProvider,
+    importSource: cert.importSource,
+    sourceFile: cert.sourceFile,
     revoked: cert.revoked,
+    revokedAt: cert.revokedAt?.toISOString() ?? null,
+    revocationReason: cert.revocationReason,
     tags: (cert.tags ?? {}) as Record<string, string>,
     customFields: (cert.customFields ?? {}) as Record<string, string>,
     description: cert.description,
     createdAt: cert.createdAt.toISOString(),
     updatedAt: cert.updatedAt.toISOString(),
-    status: computeStatus(cert),
     daysUntilExpiry: computeDaysUntilExpiry(cert.notAfter),
   };
 }
@@ -104,7 +113,7 @@ export class CertificateService {
    */
   async listCertificates(
     query: ListCertificatesQuery,
-  ): Promise<PaginatedResponse<Certificate & { status: CertificateStatus; daysUntilExpiry: number }>> {
+  ): Promise<PaginatedResponse<Certificate & { daysUntilExpiry: number }>> {
     // Parse pagination
     const pagination = parsePaginationParams({
       page: query.page,
@@ -121,7 +130,9 @@ export class CertificateService {
     const filters: CertificateFilters = {
       q: query.q,
       expiresIn: query.expiresIn,
-      environment: query.environment ? query.environment.split(',').map((s) => s.trim()) : undefined,
+      environment: query.environment
+        ? query.environment.split(',').map((s) => s.trim())
+        : undefined,
       ca: query.ca ? query.ca.split(',').map((s) => s.trim()) : undefined,
       status: query.status ? query.status.split(',').map((s) => s.trim()) : undefined,
       owner: query.owner ? query.owner.split(',').map((s) => s.trim()) : undefined,
@@ -139,7 +150,7 @@ export class CertificateService {
    */
   async getCertificate(
     id: string,
-  ): Promise<(Certificate & { status: CertificateStatus; daysUntilExpiry: number }) | null> {
+  ): Promise<(Certificate & { daysUntilExpiry: number }) | null> {
     const cert = await this.repo.findById(id);
     if (!cert) return null;
     return mapToApiCertificate(cert);
@@ -185,19 +196,19 @@ export class CertificateService {
   async deleteCertificate(
     id: string,
     actor: string = 'system',
-  ): Promise<(Certificate & { status: CertificateStatus; daysUntilExpiry: number }) | null> {
+  ): Promise<(Certificate & { daysUntilExpiry: number }) | null> {
     const existing = await this.repo.findById(id);
     if (!existing) return null;
 
     const updated = await this.repo.softDelete(id);
 
-    await this.repo.createAuditLog({
-      certId: id,
+    await this.repo.createAuditEntry({
+      certificateId: id,
       certCn: updated.commonName,
       action: 'REVOKE',
       actor,
       result: 'SUCCESS',
-      detail: `Certificate ${updated.commonName} (${updated.serial}) soft-deleted / revoked`,
+      detail: `Certificate ${updated.commonName} (${updated.serialNumber}) soft-deleted / revoked`,
     });
 
     return mapToApiCertificate(updated);
@@ -207,9 +218,9 @@ export class CertificateService {
    * Get filter metadata: distinct values for dropdowns.
    */
   async getFilterMeta(): Promise<FilterMeta> {
-    const [environments, caProviders, owners, algorithms, tagKeys] = await Promise.all([
+    const [environments, caNames, owners, algorithms, tagKeys] = await Promise.all([
       this.repo.getDistinctEnvironments(),
-      this.repo.getDistinctCaProviders(),
+      this.repo.getDistinctCaNames(),
       this.repo.getDistinctOwners(),
       this.repo.getDistinctAlgorithms(),
       this.repo.getDistinctTagKeys(),
@@ -217,8 +228,8 @@ export class CertificateService {
 
     return {
       environments,
-      caProviders,
-      statuses: ['active', 'expiring', 'expired', 'revoked'],
+      caNames,
+      statuses: ['VALID', 'EXPIRING_SOON', 'EXPIRED', 'REVOKED'],
       owners,
       algorithms,
       tagKeys,

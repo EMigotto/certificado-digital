@@ -10,7 +10,7 @@
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { AuditFilterParams } from '@certificado-digital/shared';
-import { AuditService } from '../services/auditService.js';
+import { AuditService, type AuditQueryParams } from '../services/auditService.js';
 import { AuditRepository } from '../repositories/auditRepo.js';
 import prisma from '../prismaClient.js';
 
@@ -31,7 +31,7 @@ export async function auditRoutes(server: FastifyInstance): Promise<void> {
       }>,
       reply: FastifyReply,
     ) => {
-      const result = await service.getEntries(request.query);
+      const result = await service.getEntries(request.query as AuditQueryParams);
       return reply.send(result);
     },
   );

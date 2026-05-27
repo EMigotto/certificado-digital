@@ -1,9 +1,8 @@
 // Prisma schema for Certificado Digital
-// PostgreSQL 16 — see docker-compose.yml
+// Certificate inventory management system
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["fullTextSearchPostgres"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -11,10 +10,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CertStatus {
+  VALID
+  EXPIRING_SOON
+  EXPIRED
+  REVOKED
+}
+
 enum Environment {
-  dev
-  hml
-  prd
+  DEV
+  HML
+  PRD
+}
+
+enum ImportSource {
+  MANUAL
+  CSV_IMPORT
+  API_SYNC
+  CERTIFICATE_FILE
 }
 
 enum AuditAction {
@@ -22,6 +39,8 @@ enum AuditAction {
   UPDATE
   DELETE
   REVOKE
+  IMPORT
+  EXPORT
 }
 
 enum AuditResult {
@@ -29,52 +48,105 @@ enum AuditResult {
   FAILURE
 }
 
+// ---------------------------------------------------------------------------
+// Certificate — core inventory entity (25+ fields)
+// ---------------------------------------------------------------------------
+
 model Certificate {
-  id                String      @id @default(uuid()) @db.Uuid
-  commonName        String      @map("common_name")
-  sans              String[]
-  serial            String      @unique
-  issuer            String
-  notBefore         DateTime    @map("not_before")
-  notAfter          DateTime    @map("not_after")
-  algorithm         String
-  fingerprintSha256 String      @unique @map("fingerprint_sha256")
-  owner             String      @default("")
-  application       String      @default("")
-  environment       Environment @default(dev)
-  zone              String      @default("")
-  caProvider        String      @map("ca_provider") @default("")
-  revoked           Boolean     @default(false)
-  tags              Json        @default("{}")
-  customFields      Json        @default("{}") @map("custom_fields")
-  description       String      @default("")
-  pemData           String?     @map("pem_data") @db.Text
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
+  id String @id @default(uuid())
 
-  auditLogs AuditLog[]
+  // ── Identity ──────────────────────────────────────────────────────────────
+  commonName   String   @map("common_name")
+  subjectDn    String?  @map("subject_dn")
+  issuerDn     String?  @map("issuer_dn")
+  sans         String[] @default([])
+  serialNumber String   @map("serial_number")
 
+  // ── Validity ──────────────────────────────────────────────────────────────
+  notBefore DateTime   @map("not_before")
+  notAfter  DateTime   @map("not_after")
+  status    CertStatus @default(VALID)
+
+  // ── Cryptography ──────────────────────────────────────────────────────────
+  signatureAlgorithm String  @map("signature_algorithm")
+  keySize            Int?    @map("key_size")
+  fingerprintSha256  String  @unique @map("fingerprint_sha256")
+  fingerprintSha1    String? @map("fingerprint_sha1")
+
+  // ── Organization context ──────────────────────────────────────────────────
+  owner       String
+  team        String?
+  application String
+  environment Environment @default(DEV)
+  zone        String?
+
+  // ── CA / Provider ─────────────────────────────────────────────────────────
+  caName     String  @map("ca_name")
+  caProvider String? @map("ca_provider")
+
+  // ── Import metadata ───────────────────────────────────────────────────────
+  importSource ImportSource @default(MANUAL) @map("import_source")
+  sourceFile   String?      @map("source_file")
+
+  // ── Revocation ────────────────────────────────────────────────────────────
+  revoked          Boolean   @default(false)
+  revokedAt        DateTime? @map("revoked_at")
+  revocationReason String?   @map("revocation_reason")
+
+  // ── Flexible / custom fields ──────────────────────────────────────────────
+  tags         Json    @default("{}") @db.JsonB
+  customFields Json    @default("{}") @map("custom_fields") @db.JsonB
+  description  String?
+
+  // ── Raw PEM data (optional, for export) ───────────────────────────────────
+  pemData String? @map("pem_data") @db.Text
+
+  // ── System timestamps ─────────────────────────────────────────────────────
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // ── Relations ─────────────────────────────────────────────────────────────
+  auditEntries AuditEntry[]
+
+  // ── Indexes ───────────────────────────────────────────────────────────────
+  @@index([notAfter], name: "idx_cert_not_after")
+  @@index([status], name: "idx_cert_status")
+  @@index([environment], name: "idx_cert_environment")
+  @@index([caName], name: "idx_cert_ca_name")
+  @@index([owner], name: "idx_cert_owner")
+  @@index([commonName, issuerDn], name: "idx_cert_cn_issuer")
   @@map("certificates")
 }
 
-model AuditLog {
-  id        String      @id @default(uuid()) @db.Uuid
-  certId    String?     @map("cert_id") @db.Uuid
-  certCn    String      @map("cert_cn")
-  action    AuditAction
-  actor     String      @default("system")
-  result    AuditResult @default(SUCCESS)
-  detail    String      @default("")
-  batchId   String?     @map("batch_id") @db.Uuid
-  timestamp DateTime    @default(now()) @db.Timestamptz(3)
+// ---------------------------------------------------------------------------
+// AuditEntry — immutable operation log
+// ---------------------------------------------------------------------------
 
-  certificate Certificate? @relation(fields: [certId], references: [id], onDelete: SetNull)
+model AuditEntry {
+  id String @id @default(uuid())
 
-  @@index([certId])
-  @@index([action])
-  @@index([timestamp])
-  @@index([batchId])
-  @@index([actor])
-  @@index([result])
-  @@map("audit_logs")
+  // ── Certificate reference ─────────────────────────────────────────────────
+  certificateId String?      @map("certificate_id")
+  certificate   Certificate? @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+  certCn        String       @map("cert_cn")
+
+  // ── Action details ────────────────────────────────────────────────────────
+  action  AuditAction
+  actor   String
+  result  AuditResult @default(SUCCESS)
+  detail  String?
+  changes Json?       @db.JsonB
+  batchId String?     @map("batch_id")
+
+  // ── Timestamp (immutable) ─────────────────────────────────────────────────
+  timestamp DateTime @default(now())
+
+  // ── Indexes ───────────────────────────────────────────────────────────────
+  @@index([certificateId], name: "idx_audit_cert_id")
+  @@index([action], name: "idx_audit_action")
+  @@index([timestamp], name: "idx_audit_timestamp")
+  @@index([actor], name: "idx_audit_actor")
+  @@index([batchId], name: "idx_audit_batch_id")
+  @@index([result], name: "idx_audit_result")
+  @@map("audit_entries")
 }

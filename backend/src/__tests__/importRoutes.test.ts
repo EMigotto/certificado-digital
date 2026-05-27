@@ -19,7 +19,7 @@ vi.mock('../prismaClient.js', () => ({
       createMany: mockCertCreateMany,
       findFirst: mockCertFindFirst,
     },
-    auditLog: {
+    auditEntry: {
       create: mockAuditCreate,
     },
     $transaction: mockTransaction,
