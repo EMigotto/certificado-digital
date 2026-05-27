@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
+import { certificateRoutes } from './routes/certificates.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -20,6 +21,9 @@ export async function buildServer() {
   server.get('/health', async () => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
+
+  // Certificate CRUD routes
+  await server.register(certificateRoutes);
 
   return server;
 }

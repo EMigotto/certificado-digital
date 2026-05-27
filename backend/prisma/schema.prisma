@@ -1,0 +1,76 @@
+// Prisma schema for Certificado Digital
+// PostgreSQL 16 — see docker-compose.yml
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Environment {
+  dev
+  hml
+  prd
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  REVOKE
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+model Certificate {
+  id                String      @id @default(uuid()) @db.Uuid
+  commonName        String      @map("common_name")
+  sans              String[]
+  serial            String      @unique
+  issuer            String
+  notBefore         DateTime    @map("not_before")
+  notAfter          DateTime    @map("not_after")
+  algorithm         String
+  fingerprintSha256 String      @unique @map("fingerprint_sha256")
+  owner             String      @default("")
+  application       String      @default("")
+  environment       Environment @default(dev)
+  zone              String      @default("")
+  caProvider        String      @map("ca_provider") @default("")
+  revoked           Boolean     @default(false)
+  tags              Json        @default("{}")
+  customFields      Json        @default("{}") @map("custom_fields")
+  description       String      @default("")
+  pemData           String?     @map("pem_data") @db.Text
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  auditLogs AuditLog[]
+
+  @@map("certificates")
+}
+
+model AuditLog {
+  id        String      @id @default(uuid()) @db.Uuid
+  certId    String?     @map("cert_id") @db.Uuid
+  certCn    String      @map("cert_cn")
+  action    AuditAction
+  actor     String      @default("system")
+  result    AuditResult @default(SUCCESS)
+  detail    String      @default("")
+  timestamp DateTime    @default(now())
+
+  certificate Certificate? @relation(fields: [certId], references: [id], onDelete: SetNull)
+
+  @@index([certId])
+  @@index([action])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
