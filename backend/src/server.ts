@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
 import { certificateRoutes } from './routes/certificates.js';
+import { importRoutes } from './routes/import.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -24,6 +25,9 @@ export async function buildServer() {
 
   // Certificate CRUD routes
   await server.register(certificateRoutes);
+
+  // Certificate import routes (file upload + CSV)
+  await server.register(importRoutes);
 
   return server;
 }
