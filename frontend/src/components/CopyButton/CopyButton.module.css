@@ -1,0 +1,46 @@
+.wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-mute);
+  padding: 2px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn:hover {
+  color: var(--accent);
+  background: rgba(94, 234, 212, 0.08);
+}
+
+.btn.copied {
+  color: var(--ok);
+}
+
+@keyframes checkPop {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.checkAnim {
+  animation: checkPop 0.25s ease;
+}

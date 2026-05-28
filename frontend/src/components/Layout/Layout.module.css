@@ -1,0 +1,56 @@
+.app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+
+.main {
+  padding: 32px 40px 80px;
+  max-width: 1400px;
+  width: 100%;
+}
+
+/* Mobile hamburger */
+.menuToggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 110;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Overlay for mobile sidebar */
+.mobileOverlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 64px 16px 40px;
+  }
+
+  .menuToggle {
+    display: flex;
+  }
+
+  .mobileOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}

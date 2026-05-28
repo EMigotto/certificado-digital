@@ -1,0 +1,76 @@
+/* ── Section ─────────────────────────────────────────── */
+.section {
+  margin-bottom: 72px;
+  scroll-margin-top: 20px;
+}
+
+/* ── Section header (matches prototype) ──────────────── */
+.secHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.secTitle {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.secTitle em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.secTag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+.cap {
+  color: var(--accent);
+  padding: 2px 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+/* ── Toolbar ─────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.btnEmit {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ── Fetching bar ────────────────────────────────────── */
+.fetchingBar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  margin-bottom: 2px;
+  border-radius: 1px;
+  animation: slide 1.2s ease-in-out infinite;
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

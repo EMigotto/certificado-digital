@@ -1,0 +1,59 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Variant: ok */
+.ok {
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--ok);
+}
+
+.ok .dot {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+}
+
+/* Variant: warn */
+.warn {
+  background: rgba(251, 191, 36, 0.1);
+  color: var(--warn);
+}
+
+.warn .dot {
+  background: var(--warn);
+}
+
+/* Variant: crit */
+.crit {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--crit);
+}
+
+.crit .dot {
+  background: var(--crit);
+}
+
+/* Variant: rev */
+.rev {
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--rev);
+}
+
+.rev .dot {
+  background: var(--rev);
+}
