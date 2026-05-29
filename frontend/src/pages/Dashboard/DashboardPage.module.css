@@ -1,0 +1,199 @@
+/* ============================================================
+   Dashboard Page — CSS Module
+   Matches prototype: prototipo-clm-mvp.html exactly
+   ============================================================ */
+
+/* === Section headers === */
+.secHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.secTitle {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.secTitleEm {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.secTag {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.secTagCap {
+  color: var(--accent);
+  padding: 2px 6px;
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+/* === KPI cards grid === */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Color-coded top bar */
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-2);
+}
+
+.kpi.ok::before {
+  background: var(--ok);
+}
+
+.kpi.warn::before {
+  background: var(--warn);
+}
+
+.kpi.crit::before {
+  background: var(--crit);
+}
+
+.kpiLabel {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.kpiValue {
+  font-family: var(--serif);
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.kpiMeta {
+  font-size: 12px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.delta {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.delta.up {
+  color: var(--ok);
+}
+
+.delta.down {
+  color: var(--crit);
+}
+
+/* === Dashboard section container === */
+.dashboardSection {
+  margin-bottom: 72px;
+  scroll-margin-top: 20px;
+}
+
+/* === Loading skeleton === */
+.kpiSkeleton {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  min-height: 120px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* === Error state === */
+.errorState {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.errorState p {
+  margin-bottom: 12px;
+}
+
+.retryButton {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  transition: all 0.15s;
+}
+
+.retryButton:hover {
+  background: var(--surface-2);
+}
+
+/* === Responsive: collapse to 2 cols on tablet, 1 col on mobile === */
+@media (max-width: 1024px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .secHead {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .secTitle {
+    font-size: 28px;
+  }
+}

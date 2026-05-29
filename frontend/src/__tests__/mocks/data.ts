@@ -5,6 +5,8 @@ import type {
   LifecycleAuditDetails,
   PaginatedResponse,
   TimelineEvent,
+  DashboardSnapshot,
+  CriticalAlert,
 } from '@certificado-digital/shared';
 
 /**
@@ -275,6 +277,77 @@ export function createLifecycleAuditEntry(
     lifecycleDetails: null,
   };
   return { ...base, ...overrides };
+}
+
+// ─── Dashboard snapshot mock data ──────────────────────────────────────────
+
+/**
+ * Creates a mock DashboardSnapshot matching the approved prototype values.
+ */
+export function createDashboardSnapshot(
+  overrides: Partial<DashboardSnapshot> = {},
+): DashboardSnapshot {
+  const base: DashboardSnapshot = {
+    kpis: {
+      totalManaged: 2847,
+      validCount: 2798,
+      expiringLessThan30d: 23,
+      expiredOrRevoked: 26,
+      trends: {
+        totalManaged: { direction: 'up', delta: 47 },
+        validCount: { direction: 'up', delta: 42 },
+        expiringLessThan30d: { direction: 'down', delta: 5 },
+        expiredOrRevoked: { direction: 'stable', delta: 0 },
+      },
+    },
+    heatmap: {},
+    alerts: createCriticalAlerts(),
+    generatedAt: new Date().toISOString(),
+  };
+  return { ...base, ...overrides };
+}
+
+/**
+ * Creates mock critical alerts matching prototype data.
+ */
+export function createCriticalAlerts(): CriticalAlert[] {
+  return [
+    {
+      cn: 'api-payments.bank.internal',
+      owner: 'time-pagamentos',
+      env: 'prd',
+      daysLeft: 2,
+      severity: 'critical',
+    },
+    {
+      cn: 'mtls-broker-kafka.bank.internal',
+      owner: 'time-data',
+      env: 'prd',
+      daysLeft: 5,
+      severity: 'critical',
+    },
+    {
+      cn: 'gateway-edge.bank.internal',
+      owner: 'time-plataforma',
+      env: 'prd',
+      daysLeft: 12,
+      severity: 'warning',
+    },
+    {
+      cn: 'auth-svc.bank.internal',
+      owner: 'time-iam',
+      env: 'hml',
+      daysLeft: 18,
+      severity: 'warning',
+    },
+    {
+      cn: 'notification-worker.bank.internal',
+      owner: 'time-comms',
+      env: 'prd',
+      daysLeft: 26,
+      severity: 'warning',
+    },
+  ];
 }
 
 /**

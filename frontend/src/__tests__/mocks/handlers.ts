@@ -7,6 +7,8 @@ import {
   createAuditEntry,
   createSampleTimeline,
   createLifecycleAuditEntry,
+  createDashboardSnapshot,
+  createCriticalAlerts,
 } from './data';
 import type {
   CaConfig,
@@ -160,6 +162,18 @@ function createMockRenewalOptions(_certId: string): RenewalOptions {
 // ─── Handlers ───────────────────────────────────────────────────────────────
 
 export const handlers = [
+  // GET /api/dashboard/snapshot — dashboard KPIs, heatmap, alerts
+  http.get('/api/dashboard/snapshot', () => {
+    return HttpResponse.json(createDashboardSnapshot());
+  }),
+
+  // GET /api/dashboard/critical-alerts — top critical alerts
+  http.get('/api/dashboard/critical-alerts', ({ request }) => {
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get('limit') ?? '5', 10);
+    return HttpResponse.json(createCriticalAlerts().slice(0, limit));
+  }),
+
   // GET /api/certificates — list with pagination
   http.get('/api/certificates', ({ request }) => {
     const url = new URL(request.url);
