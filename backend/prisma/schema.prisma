@@ -106,7 +106,8 @@ model Certificate {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // ── Relations ─────────────────────────────────────────────────────────────
-  auditEntries AuditEntry[]
+  auditEntries     AuditEntry[]
+  expirationAlerts ExpirationAlert[]
 
   // ── Indexes ───────────────────────────────────────────────────────────────
   @@index([notAfter], name: "idx_cert_not_after")
@@ -173,4 +174,160 @@ model AuditEntry {
   @@index([batchId], name: "idx_audit_batch_id")
   @@index([result], name: "idx_audit_result")
   @@map("audit_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Expiration Monitoring — Enums
+// ---------------------------------------------------------------------------
+
+enum AlertStatus {
+  PENDING
+  NOTIFIED
+  FAILED
+  ACKNOWLEDGED
+}
+
+enum NotificationChannel {
+  EMAIL
+  WEBHOOK
+}
+
+enum NotificationStatus {
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+// ---------------------------------------------------------------------------
+// ExpirationAlert — one record per certificate × threshold
+// ---------------------------------------------------------------------------
+
+model ExpirationAlert {
+  id            String      @id @default(uuid())
+  certificateId String      @map("certificate_id")
+  certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  threshold     Int
+  triggeredAt   DateTime    @map("triggered_at")
+  status        AlertStatus @default(PENDING)
+
+  // ── Certificate snapshot at alert time ────────────────────────────────────
+  certificateCn          String   @map("certificate_cn")
+  certificateSans        String[] @default([]) @map("certificate_sans")
+  daysUntilExpiryAtAlert Int      @map("days_until_expiry_at_alert")
+  caName                 String   @map("ca_name")
+  owner                  String
+  zone                   String?
+  environment            String?
+
+  // ── Acknowledgement ───────────────────────────────────────────────────────
+  acknowledgedAt DateTime? @map("acknowledged_at")
+  acknowledgedBy String?   @map("acknowledged_by")
+
+  // ── System timestamps ─────────────────────────────────────────────────────
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // ── Relations ─────────────────────────────────────────────────────────────
+  notifications NotificationRecord[]
+
+  // ── Constraints & Indexes ─────────────────────────────────────────────────
+  @@unique([certificateId, threshold], name: "uq_alert_cert_threshold")
+  @@index([status], name: "idx_alert_status")
+  @@index([triggeredAt], name: "idx_alert_triggered_at")
+  @@index([certificateId], name: "idx_alert_certificate_id")
+  @@map("expiration_alerts")
+}
+
+// ---------------------------------------------------------------------------
+// NotificationRecord — immutable log of each delivery attempt
+// ---------------------------------------------------------------------------
+
+model NotificationRecord {
+  id            String              @id @default(uuid())
+  alertId       String              @map("alert_id")
+  alert         ExpirationAlert     @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  channel       NotificationChannel
+  sentAt        DateTime            @map("sent_at")
+  status        NotificationStatus
+  errorMessage  String?             @map("error_message")
+  webhookId     String?             @map("webhook_id")
+  webhook       ExpirationWebhook?  @relation(fields: [webhookId], references: [id], onDelete: SetNull)
+  attemptNumber Int                 @map("attempt_number")
+
+  // ── Indexes ───────────────────────────────────────────────────────────────
+  @@index([alertId], name: "idx_notification_alert_id")
+  @@index([channel], name: "idx_notification_channel")
+  @@map("notification_records")
+}
+
+// ---------------------------------------------------------------------------
+// ExpirationPolicy — configurable alert thresholds per zone
+// ---------------------------------------------------------------------------
+
+model ExpirationPolicy {
+  id                        String   @id @default(uuid())
+  name                      String
+  description               String?
+  zoneId                    String?  @map("zone_id")
+  isDefault                 Boolean  @default(false) @map("is_default")
+  thresholds                String   @db.Text
+  emailEnabled              Boolean  @default(true) @map("email_enabled")
+  emailRecipientsAdditional String?  @map("email_recipients_additional")
+  emailSubjectPrefix        String?  @map("email_subject_prefix")
+  createdBy                 String   @map("created_by")
+  updatedBy                 String?  @map("updated_by")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  // ── Relations ─────────────────────────────────────────────────────────────
+  webhooks ExpirationWebhook[]
+
+  // ── Indexes ───────────────────────────────────────────────────────────────
+  // Note: partial unique index (zone_id WHERE is_default = true) is added
+  // in the raw SQL migration since Prisma does not support filtered indexes.
+  @@map("expiration_policies")
+}
+
+// ---------------------------------------------------------------------------
+// ExpirationWebhook — webhook endpoint config per policy
+// ---------------------------------------------------------------------------
+
+model ExpirationWebhook {
+  id             String           @id @default(uuid())
+  policyId       String           @map("policy_id")
+  policy         ExpirationPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  url            String
+  headers        Json             @default("{}") @db.JsonB
+  retryStrategy  String?          @map("retry_strategy")
+  maxRetries     Int              @default(3) @map("max_retries")
+  timeoutSeconds Int              @default(30) @map("timeout_seconds")
+  isActive       Boolean          @default(true) @map("is_active")
+  testResult     String?          @map("test_result")
+  lastTestAt     DateTime?        @map("last_test_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // ── Relations ─────────────────────────────────────────────────────────────
+  notifications NotificationRecord[]
+
+  // ── Indexes ───────────────────────────────────────────────────────────────
+  @@index([policyId], name: "idx_webhook_policy_id")
+  @@map("expiration_webhooks")
+}
+
+// ---------------------------------------------------------------------------
+// ExpirationSnapshot — daily cached KPI + heatmap data
+// ---------------------------------------------------------------------------
+
+model ExpirationSnapshot {
+  id                  String   @id @default(uuid())
+  snapshotDate        DateTime @unique @map("snapshot_date") @db.Date
+  totalManaged        Int      @map("total_managed")
+  validCount          Int      @map("valid_count")
+  expiringLessThan30d Int      @map("expiring_less_than_30d")
+  expiredOrRevoked    Int      @map("expired_or_revoked")
+  expirationsByDay    String   @map("expirations_by_day") @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@map("expiration_snapshots")
 }
