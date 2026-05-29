@@ -17,6 +17,14 @@ const envSchema = z.object({
 
   /** Frontend origin for CORS */
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+
+  /**
+   * 256-bit key (hex-encoded, 64 chars) used to encrypt generated private keys
+   * with AES-256-GCM. MUST be changed in production.
+   */
+  ENCRYPTION_KEY: z
+    .string()
+    .default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
 });
 
 export type Env = z.infer<typeof envSchema>;

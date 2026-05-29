@@ -119,6 +119,30 @@ model Certificate {
 }
 
 // ---------------------------------------------------------------------------
+// CaConfig — Certificate Authority integration configuration
+// ---------------------------------------------------------------------------
+
+enum CaType {
+  VAULT_PKI
+  REST_CA
+}
+
+model CaConfig {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  type        CaType
+  endpoint    String
+  authToken   String?  @map("auth_token")
+  authHeaders Json?    @map("auth_headers") @db.JsonB
+  role        String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("ca_configs")
+}
+
+// ---------------------------------------------------------------------------
 // AuditEntry — immutable operation log
 // ---------------------------------------------------------------------------
 
