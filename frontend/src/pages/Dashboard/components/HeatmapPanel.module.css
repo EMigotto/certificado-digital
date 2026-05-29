@@ -1,0 +1,147 @@
+/* Heatmap panel — matches prototipo-clm-mvp.html section "Expirações nos próximos 90 dias" */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panelSub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+  margin-top: 4px;
+}
+
+.panelSubRight {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+/* Heatmap grid — 30 cols × 3 rows = 90 cells */
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 3px;
+}
+
+.heatCell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--surface-2);
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+
+.heatCell:hover {
+  transform: scale(1.15);
+  z-index: 2;
+}
+
+/* Color intensity levels */
+.l1 {
+  background: rgba(74, 222, 128, 0.25);
+}
+
+.l2 {
+  background: rgba(251, 191, 36, 0.4);
+}
+
+.l3 {
+  background: rgba(251, 191, 36, 0.75);
+}
+
+.l4 {
+  background: rgba(248, 113, 113, 0.7);
+}
+
+.l5 {
+  background: var(--crit);
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* X-axis labels */
+.heatmapAxis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-mute);
+  margin-top: 8px;
+}
+
+/* Legend */
+.heatmapLegend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-mute);
+  margin-top: 12px;
+}
+
+.legendCell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legendEmpty {
+  background: var(--surface-2);
+}
+
+.legendL1 {
+  background: rgba(74, 222, 128, 0.25);
+}
+
+.legendL2 {
+  background: rgba(251, 191, 36, 0.4);
+}
+
+.legendL3 {
+  background: rgba(251, 191, 36, 0.75);
+}
+
+.legendL4 {
+  background: rgba(248, 113, 113, 0.7);
+}
+
+.legendL5 {
+  background: var(--crit);
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
+}

@@ -176,10 +176,31 @@
   background: var(--surface-2);
 }
 
+/* === Heatmap + Alerts 2-column grid === */
+.grid2 {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+/* === Heatmap / panel loading skeletons === */
+.skeletonPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  min-height: 280px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 /* === Responsive: collapse to 2 cols on tablet, 1 col on mobile === */
 @media (max-width: 1024px) {
   .kpiGrid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .grid2 {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -284,6 +284,24 @@ export function createLifecycleAuditEntry(
 /**
  * Creates a mock DashboardSnapshot matching the approved prototype values.
  */
+/**
+ * Generate realistic heatmap data for 90 days.
+ * Matches the prototype visual: mostly empty, with scattered clusters.
+ */
+function generateMockHeatmap(): Record<number, number> {
+  const heatmap: Record<number, number> = {};
+  // Deterministic pattern matching prototype visual
+  const entries: [number, number][] = [
+    [1, 3], [4, 12], [8, 2], [12, 8], [17, 1],
+    [25, 4], [32, 15], [38, 3], [46, 22], [51, 7],
+    [63, 45], [68, 2], [77, 70], [85, 6],
+  ];
+  for (const [day, count] of entries) {
+    heatmap[day] = count;
+  }
+  return heatmap;
+}
+
 export function createDashboardSnapshot(
   overrides: Partial<DashboardSnapshot> = {},
 ): DashboardSnapshot {
@@ -300,7 +318,7 @@ export function createDashboardSnapshot(
         expiredOrRevoked: { direction: 'stable', delta: 0 },
       },
     },
-    heatmap: {},
+    heatmap: generateMockHeatmap(),
     alerts: createCriticalAlerts(),
     generatedAt: new Date().toISOString(),
   };

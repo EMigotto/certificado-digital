@@ -1,0 +1,57 @@
+/* Critical alerts panel — right side of dashboard grid */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panelSub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.alertList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.countLink {
+  display: block;
+  text-align: center;
+  margin-top: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.countLink:hover {
+  opacity: 0.8;
+}
+
+/* Empty state */
+.empty {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-mute);
+  text-align: center;
+  padding: 24px 0;
+}

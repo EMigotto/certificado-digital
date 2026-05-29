@@ -6,11 +6,13 @@ import type { DashboardSnapshot } from '@certificado-digital/shared';
  * TanStack Query hook for fetching the dashboard snapshot.
  *
  * Provides KPI metrics, heatmap data, and critical alerts.
- * Auto-refresh is intentionally NOT enabled here (added in chunk #11).
+ * Auto-refreshes every 60 seconds to match the prototype's "Auto-refresh 60s" label.
  */
 export function useDashboardSnapshot() {
   return useQuery<DashboardSnapshot>({
     queryKey: ['dashboard', 'snapshot'],
     queryFn: fetchDashboardSnapshot,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 }

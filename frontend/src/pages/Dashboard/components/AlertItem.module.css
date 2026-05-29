@@ -1,0 +1,59 @@
+/* Alert item row — matches prototype .alert styles */
+
+.alert {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  border-left: 3px solid var(--border-2);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.alert:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.crit {
+  border-left-color: var(--crit);
+}
+
+.warn {
+  border-left-color: var(--warn);
+}
+
+.alertContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertCn {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alertMeta {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.alertDays {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  align-self: center;
+}
+
+.daysCrit {
+  color: var(--crit);
+}
+
+.daysWarn {
+  color: var(--warn);
+}
