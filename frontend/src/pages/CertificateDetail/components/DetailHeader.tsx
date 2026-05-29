@@ -1,4 +1,4 @@
-import type { CertificateStatus } from '@certificado-digital/shared';
+import type { CertificateStatus } from '@/types/lifecycle';
 import { Badge, type BadgeVariant } from '@/components/Badge/Badge';
 import styles from '../CertificateDetailPage.module.css';
 
@@ -13,8 +13,11 @@ interface DetailHeaderProps {
 }
 
 const STATUS_MAP: Record<CertificateStatus, { variant: BadgeVariant; label: string }> = {
+  pending: { variant: 'pending', label: 'Pendente' },
+  issued: { variant: 'issued', label: 'Emitido' },
   active: { variant: 'ok', label: 'Válido' },
   expiring: { variant: 'warn', label: 'Atenção' },
+  renewed: { variant: 'renewed', label: 'Renovado' },
   expired: { variant: 'crit', label: 'Expirado' },
   revoked: { variant: 'rev', label: 'Revogado' },
 };

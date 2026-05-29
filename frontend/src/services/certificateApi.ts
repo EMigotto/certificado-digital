@@ -108,6 +108,26 @@ export async function revokeCertificate(id: string): Promise<void> {
   await api.patch(`/certificates/${id}/revoke`);
 }
 
+/** Revoke a certificate with RFC 5280 reason code and justification */
+export async function revokeCertificateWithReason(
+  id: string,
+  params: { reasonCode: number; justification?: string; notifyOwner: boolean },
+): Promise<void> {
+  await api.patch(`/certificates/${id}/revoke`, params);
+}
+
+/** Renew a certificate (optionally rotating the key pair) */
+export async function renewCertificate(
+  id: string,
+  params: { rotateKey: boolean; validityDays: number; notifyOwner: boolean },
+): Promise<{ newCertificateId: string }> {
+  const { data } = await api.post<{ newCertificateId: string }>(
+    `/certificates/${id}/renew`,
+    params,
+  );
+  return data;
+}
+
 /** Hard-delete a certificate */
 export async function deleteCertificate(id: string): Promise<void> {
   await api.delete(`/certificates/${id}`);

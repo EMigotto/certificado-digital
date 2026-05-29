@@ -1,9 +1,12 @@
-import type { Certificate, CertificateStatus } from '@certificado-digital/shared';
+import { Link } from 'react-router-dom';
+import type { Certificate } from '@certificado-digital/shared';
+import type { CertificateStatus, CertificateWithLifecycle } from '@/types/lifecycle';
+import { Badge } from '@/components/Badge/Badge';
 import { InfoItem } from './InfoItem';
 import styles from './MetadataGrid.module.css';
 
 interface MetadataGridProps {
-  cert: Certificate;
+  cert: Certificate & Partial<CertificateWithLifecycle>;
   status: CertificateStatus;
   daysUntilExpiry: number;
 }
@@ -37,26 +40,125 @@ export function MetadataGrid({ cert, status, daysUntilExpiry }: MetadataGridProp
         .join(', ')
     : '—';
 
+  // Access fields with fallback for field name variations (API may return aliases)
+  const certAny = cert as unknown as Record<string, unknown>;
+  const serial =
+    (certAny.serial as string | undefined) ??
+    cert.serialNumber ??
+    '—';
+  const algorithm =
+    (certAny.algorithm as string | undefined) ??
+    cert.signatureAlgorithm ??
+    '—';
+  const issuer =
+    (certAny.issuer as string | undefined) ??
+    cert.issuerDn ??
+    '—';
+
   return (
-    <div className={styles.infoGrid} data-testid="metadata-grid">
-      <InfoItem label="Serial Number" value={cert.serial} copyable />
-      <InfoItem label="Fingerprint SHA-256" value={cert.fingerprintSha256} copyable truncate />
-      <InfoItem label="Not Before" value={formatDate(cert.notBefore)} />
-      <InfoItem label="Not After" value={formatDate(cert.notAfter)} />
-      <InfoItem
-        label="Dias até expiração"
-        value={daysLabel(daysUntilExpiry)}
-        colorClass={status === 'revoked' ? undefined : daysColorClass(daysUntilExpiry)}
-      />
-      <InfoItem label="Algoritmo" value={cert.algorithm} />
-      <InfoItem label="Issuer" value={cert.issuer} copyable truncate />
-      <InfoItem label="CA Provider" value={cert.caProvider} />
-      <InfoItem label="Owner" value={cert.owner} sans />
-      <InfoItem label="Application" value={cert.application || '—'} sans />
-      <InfoItem label="Zona" value={cert.zone || '—'} />
-      <InfoItem label="Environment" value={cert.environment} />
-      <InfoItem label="Tags" value={tags} sans />
-      <InfoItem label="Descrição" value={cert.description || '—'} sans />
+    <div data-testid="metadata-grid">
+      {/* Renewal links */}
+      {(cert.renewalParentId || cert.renewalChildId) && (
+        <div className={styles.renewalLinks}>
+          {cert.renewalParentId && (
+            <div className={styles.renewalLink}>
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <span className={styles.renewalLabel}>Renewal of:</span>
+              <Link
+                to={`/certificates/${cert.renewalParentId}`}
+                className={styles.renewalCn}
+              >
+                {cert.renewalParentCn ?? cert.renewalParentId}
+              </Link>
+            </div>
+          )}
+          {cert.renewalChildId && (
+            <div className={styles.renewalLink}>
+              <svg width="14" height="14" viewBox="0 0 24 24">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+              <span className={styles.renewalLabel}>Renewed to:</span>
+              <Link
+                to={`/certificates/${cert.renewalChildId}`}
+                className={styles.renewalCn}
+              >
+                {cert.renewalChildCn ?? cert.renewalChildId}
+              </Link>
+              <Badge variant="renewed">Renewed</Badge>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main metadata grid */}
+      <div className={styles.infoGrid}>
+        <InfoItem label="Serial Number" value={serial} copyable />
+        <InfoItem
+          label="Fingerprint SHA-256"
+          value={cert.fingerprintSha256}
+          copyable
+          truncate
+        />
+        <InfoItem label="Not Before" value={formatDate(cert.notBefore)} />
+        <InfoItem label="Not After" value={formatDate(cert.notAfter)} />
+        <InfoItem
+          label="Dias até expiração"
+          value={daysLabel(daysUntilExpiry)}
+          colorClass={
+            status === 'revoked' ? undefined : daysColorClass(daysUntilExpiry)
+          }
+        />
+        <InfoItem label="Algoritmo" value={algorithm} />
+        <InfoItem label="Issuer" value={issuer} copyable truncate />
+        <InfoItem label="CA Provider" value={cert.caProvider ?? '—'} />
+        <InfoItem label="Owner" value={cert.owner} sans />
+        <InfoItem label="Application" value={cert.application || '—'} sans />
+        <InfoItem label="Zona" value={cert.zone || '—'} />
+        <InfoItem label="Environment" value={cert.environment} />
+        <InfoItem label="Tags" value={tags} sans />
+        <InfoItem label="Descrição" value={cert.description || '—'} sans />
+      </div>
+
+      {/* Revocation detail section — only shown when cert is revoked */}
+      {cert.revoked && (
+        <div className={styles.revocationSection}>
+          <div className={styles.revocationTitle}>
+            <svg width="14" height="14" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+            </svg>
+            Revocation Details
+          </div>
+          <div className={styles.revocationGrid}>
+            <div className={styles.revocationItem}>
+              <div className={styles.revocationLabel}>Revoked On</div>
+              <div className={styles.revocationValue}>
+                {cert.revokedAt ? formatDate(cert.revokedAt) : '—'}
+              </div>
+            </div>
+            <div className={styles.revocationItem}>
+              <div className={styles.revocationLabel}>Reason</div>
+              <div className={styles.revocationValue}>
+                {cert.revocationReason || '—'}
+              </div>
+            </div>
+            <div className={styles.revocationItem}>
+              <div className={styles.revocationLabel}>Justification</div>
+              <div className={styles.revocationValue}>
+                {cert.revocationJustification || '—'}
+              </div>
+            </div>
+            <div className={styles.revocationItem}>
+              <div className={styles.revocationLabel}>Revoked By</div>
+              <div className={styles.revocationValue}>
+                {cert.revokedBy || '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -29,6 +29,25 @@ describe('Badge', () => {
     expect(container.querySelector('.rev')).toBeInTheDocument();
   });
 
+  it('renders pending variant with animated dot', () => {
+    const { container } = render(<Badge variant="pending">Pendente</Badge>);
+    expect(container.querySelector('.pending')).toBeInTheDocument();
+    expect(container.querySelector('.dot')).toBeInTheDocument();
+    expect(screen.getByText('Pendente')).toBeInTheDocument();
+  });
+
+  it('renders issued variant', () => {
+    const { container } = render(<Badge variant="issued">Emitido</Badge>);
+    expect(container.querySelector('.issued')).toBeInTheDocument();
+    expect(screen.getByText('Emitido')).toBeInTheDocument();
+  });
+
+  it('renders renewed variant', () => {
+    const { container } = render(<Badge variant="renewed">Renewed</Badge>);
+    expect(container.querySelector('.renewed')).toBeInTheDocument();
+    expect(screen.getByText('Renewed')).toBeInTheDocument();
+  });
+
   it('renders with correct semantic structure (span with dot)', () => {
     const { container } = render(<Badge variant="ok">Test</Badge>);
     const badge = container.querySelector('.badge');

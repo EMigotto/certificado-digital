@@ -1,6 +1,6 @@
 import styles from './Badge.module.css';
 
-export type BadgeVariant = 'ok' | 'warn' | 'crit' | 'rev';
+export type BadgeVariant = 'ok' | 'warn' | 'crit' | 'rev' | 'pending' | 'issued' | 'renewed';
 
 interface BadgeProps {
   variant: BadgeVariant;

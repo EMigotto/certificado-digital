@@ -77,10 +77,35 @@ export const handlers = [
     return HttpResponse.json({ success: true });
   }),
 
-  // POST /api/certificates/:id/revoke — revoke certificate
+  // PATCH /api/certificates/:id/revoke — revoke certificate (simple + with reason)
+  http.patch('/api/certificates/:id/revoke', async ({ params, request }) => {
+    let body: Record<string, unknown> = {};
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      // Simple revoke without body
+    }
+    const cert = createCertificate({
+      id: params.id as string,
+      revoked: true,
+      revokedAt: new Date().toISOString(),
+      revocationReason: body.reasonCode !== undefined
+        ? `RFC5280:${body.reasonCode}`
+        : 'Unspecified',
+    });
+    return HttpResponse.json(cert);
+  }),
+
+  // POST /api/certificates/:id/revoke — legacy revoke endpoint
   http.post('/api/certificates/:id/revoke', ({ params }) => {
     const cert = createCertificate({ id: params.id as string, revoked: true });
     return HttpResponse.json(cert);
+  }),
+
+  // POST /api/certificates/:id/renew — renew certificate
+  http.post('/api/certificates/:id/renew', ({ params }) => {
+    const newId = `renewed-${params.id as string}`;
+    return HttpResponse.json({ newCertificateId: newId });
   }),
 
   // POST /api/import/certificate — single cert import

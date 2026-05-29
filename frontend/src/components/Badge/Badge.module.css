@@ -17,7 +17,7 @@
   border-radius: 50%;
 }
 
-/* Variant: ok */
+/* Variant: ok (ACTIVE — green) */
 .ok {
   background: rgba(74, 222, 128, 0.1);
   color: var(--ok);
@@ -28,7 +28,7 @@
   box-shadow: 0 0 6px var(--ok);
 }
 
-/* Variant: warn */
+/* Variant: warn (EXPIRING_SOON — yellow) */
 .warn {
   background: rgba(251, 191, 36, 0.1);
   color: var(--warn);
@@ -38,7 +38,7 @@
   background: var(--warn);
 }
 
-/* Variant: crit */
+/* Variant: crit (EXPIRED / REVOKED — red) */
 .crit {
   background: rgba(248, 113, 113, 0.1);
   color: var(--crit);
@@ -48,7 +48,7 @@
   background: var(--crit);
 }
 
-/* Variant: rev */
+/* Variant: rev (REVOKED — purple) */
 .rev {
   background: rgba(167, 139, 250, 0.1);
   color: var(--rev);
@@ -56,4 +56,46 @@
 
 .rev .dot {
   background: var(--rev);
+}
+
+/* Variant: pending (PENDING — blue) */
+.pending {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-2);
+}
+
+.pending .dot {
+  background: var(--accent-2);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Variant: issued (ISSUED — cyan) */
+.issued {
+  background: rgba(94, 234, 212, 0.1);
+  color: var(--accent);
+}
+
+.issued .dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* Variant: renewed (RENEWED — purple) */
+.renewed {
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--rev);
+}
+
+.renewed .dot {
+  background: var(--rev);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }

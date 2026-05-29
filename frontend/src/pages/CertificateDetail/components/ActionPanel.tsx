@@ -1,29 +1,79 @@
 import { Button } from '@/components/Button/Button';
+import { Badge } from '@/components/Badge/Badge';
 import styles from './ActionPanel.module.css';
 
 interface ActionPanelProps {
   onExportPem: () => void;
   onExportJson: () => void;
   onRevoke: () => void;
+  onRenew: () => void;
   onDelete: () => void;
   isRevoked: boolean;
+  isExpired: boolean;
   exportLoading: boolean;
+  daysUntilExpiry: number;
+  hasRenewalChild: boolean;
+  isAdmin?: boolean;
 }
 
 export function ActionPanel({
   onExportPem,
   onExportJson,
   onRevoke,
+  onRenew,
   onDelete,
   isRevoked,
+  isExpired,
   exportLoading,
+  daysUntilExpiry,
+  hasRenewalChild,
+  isAdmin = false,
 }: ActionPanelProps) {
+  const canRenew =
+    !isRevoked &&
+    !hasRenewalChild &&
+    (daysUntilExpiry <= 30 || isAdmin);
+
+  const renewDisabledReason =
+    isRevoked
+      ? 'Revoked certificates cannot be renewed'
+      : hasRenewalChild
+        ? 'This certificate has already been renewed'
+        : daysUntilExpiry > 30 && !isAdmin
+          ? `Renewal available when ≤ 30 days until expiry (currently ${daysUntilExpiry}d)`
+          : undefined;
+
   return (
     <div className={styles.panel}>
       <div className={styles.panelTitle}>Ações</div>
 
       <div className={styles.actions}>
-        <Button variant="secondary" onClick={onExportPem} disabled={exportLoading}>
+        {/* Renew button */}
+        <div className={styles.renewSection}>
+          <Button
+            variant="primary"
+            onClick={onRenew}
+            disabled={!canRenew}
+            title={renewDisabledReason}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            Renovar
+          </Button>
+          {hasRenewalChild && (
+            <Badge variant="renewed">Renewed</Badge>
+          )}
+        </div>
+
+        <div className={styles.divider} />
+
+        <Button
+          variant="secondary"
+          onClick={onExportPem}
+          disabled={exportLoading}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
@@ -32,7 +82,11 @@ export function ActionPanel({
           Export PEM
         </Button>
 
-        <Button variant="secondary" onClick={onExportJson} disabled={exportLoading}>
+        <Button
+          variant="secondary"
+          onClick={onExportJson}
+          disabled={exportLoading}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
@@ -51,7 +105,11 @@ export function ActionPanel({
 
         <div className={styles.divider} />
 
-        <Button variant="danger" onClick={onRevoke} disabled={isRevoked}>
+        <Button
+          variant="danger"
+          onClick={onRevoke}
+          disabled={isRevoked || isExpired}
+        >
           <svg width="14" height="14" viewBox="0 0 24 24">
             <circle cx="12" cy="12" r="10" />
             <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />

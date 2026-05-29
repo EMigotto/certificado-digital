@@ -1,22 +1,28 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { CertificateStatus } from '@certificado-digital/shared';
+import type { CertificateStatus, CertificateWithLifecycle } from '@/types/lifecycle';
 import { Breadcrumb } from '@/components/Breadcrumb/Breadcrumb';
 import { useCertificateDetail } from '@/hooks/useCertificateDetail';
 import { useExportCertificate } from '@/hooks/useExportCertificate';
-import { useRevokeCertificate, useDeleteCertificate } from '@/hooks/useDeleteCertificate';
+import { useDeleteCertificate } from '@/hooks/useDeleteCertificate';
+import { useRenewCertificate } from '@/hooks/useRenewCertificate';
+import { useRevokeCertificateWithReason } from '@/hooks/useRevokeCertificateWithReason';
 import { DetailHeader } from './components/DetailHeader';
 import { MetadataGrid } from './components/MetadataGrid';
 import { SanList } from './components/SanList';
 import { ActionPanel } from './components/ActionPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
+import { RenewalModal } from './components/RenewalModal';
+import { RevocationModal } from './components/RevocationModal';
 import styles from './CertificateDetailPage.module.css';
 
 function computeStatus(
   notAfter: string,
   revoked: boolean,
+  renewalChildId?: string | null,
 ): { status: CertificateStatus; daysUntilExpiry: number } {
   if (revoked) return { status: 'revoked', daysUntilExpiry: 0 };
+  if (renewalChildId) return { status: 'renewed', daysUntilExpiry: 0 };
   const now = Date.now();
   const expiry = new Date(notAfter).getTime();
   const diffMs = expiry - now;
@@ -26,26 +32,36 @@ function computeStatus(
   return { status: 'active', daysUntilExpiry: days };
 }
 
+type ModalState = 'renewal' | 'revocation' | 'delete' | null;
+
 export default function CertificateDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: cert, isLoading, isError } = useCertificateDetail(id);
   const { doExport, loading: exportLoading } = useExportCertificate();
-  const revokeMutation = useRevokeCertificate();
   const deleteMutation = useDeleteCertificate();
+  const renewMutation = useRenewCertificate();
+  const revokeMutation = useRevokeCertificateWithReason();
 
-  const [confirmAction, setConfirmAction] = useState<'revoke' | 'delete' | null>(null);
+  const [activeModal, setActiveModal] = useState<ModalState>(null);
+
+  // Cast cert to extended type for lifecycle fields
+  const certLifecycle = cert as CertificateWithLifecycle | undefined;
 
   const { status, daysUntilExpiry } = useMemo(() => {
-    if (!cert) return { status: 'active' as CertificateStatus, daysUntilExpiry: 0 };
-    return computeStatus(cert.notAfter, cert.revoked);
-  }, [cert]);
+    if (!certLifecycle) return { status: 'active' as CertificateStatus, daysUntilExpiry: 0 };
+    return computeStatus(
+      certLifecycle.notAfter,
+      certLifecycle.revoked,
+      certLifecycle.renewalChildId,
+    );
+  }, [certLifecycle]);
 
   if (isLoading) {
     return <div className={styles.loading}>Carregando certificado…</div>;
   }
 
-  if (isError || !cert) {
+  if (isError || !cert || !certLifecycle) {
     return (
       <div className={styles.error}>
         <svg width="24" height="24" viewBox="0 0 24 24">
@@ -74,21 +90,47 @@ export default function CertificateDetailPage() {
   }
 
   const isExpired = status === 'expired';
-  const isRevoked = cert.revoked;
-
-  const handleConfirmRevoke = () => {
-    revokeMutation.mutate(cert.id, {
-      onSuccess: () => setConfirmAction(null),
-    });
-  };
+  const isRevoked = certLifecycle.revoked;
+  const hasRenewalChild = !!certLifecycle.renewalChildId;
 
   const handleConfirmDelete = () => {
-    deleteMutation.mutate(cert.id, {
+    deleteMutation.mutate(certLifecycle.id, {
       onSuccess: () => {
-        setConfirmAction(null);
+        setActiveModal(null);
         navigate('/certificates');
       },
     });
+  };
+
+  const handleRenewSubmit = (params: {
+    rotateKey: boolean;
+    validityDays: number;
+    notifyOwner: boolean;
+  }) => {
+    renewMutation.mutate(
+      { id: certLifecycle.id, params },
+      {
+        onSuccess: (data) => {
+          setActiveModal(null);
+          navigate(`/certificates/${data.newCertificateId}`);
+        },
+      },
+    );
+  };
+
+  const handleRevokeSubmit = (params: {
+    reasonCode: number;
+    justification: string;
+    notifyOwner: boolean;
+  }) => {
+    revokeMutation.mutate(
+      { id: certLifecycle.id, params },
+      {
+        onSuccess: () => {
+          setActiveModal(null);
+        },
+      },
+    );
   };
 
   return (
@@ -98,35 +140,23 @@ export default function CertificateDetailPage() {
         <Breadcrumb
           segments={[
             { label: 'Certificados', path: '/certificates' },
-            { label: cert.commonName },
+            { label: certLifecycle.commonName },
           ]}
         />
 
         <DetailHeader
-          commonName={cert.commonName}
+          commonName={certLifecycle.commonName}
           status={status}
-          environment={cert.environment}
-          caProvider={cert.caProvider}
-          owner={cert.owner}
+          environment={certLifecycle.environment}
+          caProvider={certLifecycle.caProvider ?? '—'}
+          owner={certLifecycle.owner}
           isExpired={isExpired}
-          notAfter={cert.notAfter}
+          notAfter={certLifecycle.notAfter}
         />
 
         <div className={styles.detailActions}>
           <button
-            style={{
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border)',
-              borderRadius: '6px',
-              padding: '6px 14px',
-              color: 'var(--text-dim)',
-              cursor: 'pointer',
-              fontFamily: 'var(--mono)',
-              fontSize: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className={styles.backBtn}
             onClick={() => navigate('/certificates')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24">
@@ -157,46 +187,64 @@ export default function CertificateDetailPage() {
       <div className={styles.detailGrid}>
         {/* Left — Metadata + SANs */}
         <div>
-          <MetadataGrid cert={cert} status={status} daysUntilExpiry={daysUntilExpiry} />
+          <MetadataGrid
+            cert={certLifecycle}
+            status={status}
+            daysUntilExpiry={daysUntilExpiry}
+          />
           <div style={{ marginTop: '20px' }}>
-            <SanList sans={cert.sans} />
+            <SanList sans={certLifecycle.sans} />
           </div>
         </div>
 
         {/* Right — Action panel */}
         <div>
           <ActionPanel
-            onExportPem={() => void doExport(cert.id, 'pem')}
-            onExportJson={() => void doExport(cert.id, 'json')}
-            onRevoke={() => setConfirmAction('revoke')}
-            onDelete={() => setConfirmAction('delete')}
+            onExportPem={() => void doExport(certLifecycle.id, 'pem')}
+            onExportJson={() => void doExport(certLifecycle.id, 'json')}
+            onRevoke={() => setActiveModal('revocation')}
+            onRenew={() => setActiveModal('renewal')}
+            onDelete={() => setActiveModal('delete')}
             isRevoked={isRevoked}
+            isExpired={isExpired}
             exportLoading={exportLoading}
+            daysUntilExpiry={daysUntilExpiry}
+            hasRenewalChild={hasRenewalChild}
           />
         </div>
       </div>
 
-      {/* Confirm dialogs */}
-      {confirmAction === 'revoke' && (
-        <ConfirmDialog
-          title="Revogar certificado"
-          message={`Tem certeza que deseja revogar o certificado "${cert.commonName}"? Esta ação não pode ser desfeita.`}
-          confirmLabel="Revogar"
-          variant="danger"
-          onConfirm={handleConfirmRevoke}
-          onCancel={() => setConfirmAction(null)}
+      {/* === Modals === */}
+
+      {/* Renewal modal */}
+      {activeModal === 'renewal' && (
+        <RenewalModal
+          commonName={certLifecycle.commonName}
+          onClose={() => setActiveModal(null)}
+          onSubmit={handleRenewSubmit}
+          loading={renewMutation.isPending}
+        />
+      )}
+
+      {/* Revocation modal with RFC 5280 reasons */}
+      {activeModal === 'revocation' && (
+        <RevocationModal
+          commonName={certLifecycle.commonName}
+          onClose={() => setActiveModal(null)}
+          onSubmit={handleRevokeSubmit}
           loading={revokeMutation.isPending}
         />
       )}
 
-      {confirmAction === 'delete' && (
+      {/* Delete confirm dialog */}
+      {activeModal === 'delete' && (
         <ConfirmDialog
           title="Excluir certificado"
-          message={`Tem certeza que deseja excluir permanentemente o certificado "${cert.commonName}"? Esta ação é irreversível.`}
+          message={`Tem certeza que deseja excluir permanentemente o certificado "${certLifecycle.commonName}"? Esta ação é irreversível.`}
           confirmLabel="Excluir"
           variant="danger"
           onConfirm={handleConfirmDelete}
-          onCancel={() => setConfirmAction(null)}
+          onCancel={() => setActiveModal(null)}
           loading={deleteMutation.isPending}
         />
       )}

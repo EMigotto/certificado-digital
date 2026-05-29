@@ -28,3 +28,20 @@
   background: var(--border);
   margin: 8px 0;
 }
+
+/* === Renew section with badge === */
+.renewSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.renewSection button {
+  width: 100%;
+  justify-content: center;
+}
+
+.renewSection .badge {
+  text-align: center;
+}
