@@ -40,21 +40,6 @@ export function MetadataGrid({ cert, status, daysUntilExpiry }: MetadataGridProp
         .join(', ')
     : '—';
 
-  // Access fields with fallback for field name variations (API may return aliases)
-  const certAny = cert as unknown as Record<string, unknown>;
-  const serial =
-    (certAny.serial as string | undefined) ??
-    cert.serialNumber ??
-    '—';
-  const algorithm =
-    (certAny.algorithm as string | undefined) ??
-    cert.signatureAlgorithm ??
-    '—';
-  const issuer =
-    (certAny.issuer as string | undefined) ??
-    cert.issuerDn ??
-    '—';
-
   return (
     <div data-testid="metadata-grid">
       {/* Renewal links */}
@@ -94,7 +79,7 @@ export function MetadataGrid({ cert, status, daysUntilExpiry }: MetadataGridProp
 
       {/* Main metadata grid */}
       <div className={styles.infoGrid}>
-        <InfoItem label="Serial Number" value={serial} copyable />
+        <InfoItem label="Serial Number" value={cert.serialNumber} copyable />
         <InfoItem
           label="Fingerprint SHA-256"
           value={cert.fingerprintSha256}
@@ -110,8 +95,8 @@ export function MetadataGrid({ cert, status, daysUntilExpiry }: MetadataGridProp
             status === 'revoked' ? undefined : daysColorClass(daysUntilExpiry)
           }
         />
-        <InfoItem label="Algoritmo" value={algorithm} />
-        <InfoItem label="Issuer" value={issuer} copyable truncate />
+        <InfoItem label="Algoritmo" value={cert.signatureAlgorithm} />
+        <InfoItem label="Issuer" value={cert.issuerDn ?? '—'} copyable truncate />
         <InfoItem label="CA Provider" value={cert.caProvider ?? '—'} />
         <InfoItem label="Owner" value={cert.owner} sans />
         <InfoItem label="Application" value={cert.application || '—'} sans />

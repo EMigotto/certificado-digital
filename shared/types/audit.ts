@@ -42,6 +42,9 @@ export interface AuditEntry {
   result: AuditResult;
   detail: string | null;
 
+  /** Batch ID for bulk operations (null for single ops) */
+  batchId: string | null;
+
   /** JSON diff of changed fields (null for CREATE / DELETE) */
   changes: AuditChange[] | null;
 

@@ -23,6 +23,7 @@ const mockCert: Certificate = {
   issuer: 'CN=Vault PKI Intermediate CA',
   notBefore: '2024-01-15T00:00:00Z',
   notAfter: '2025-01-15T00:00:00Z',
+  status: 'VALID',
   signatureAlgorithm: 'RSA 2048',
   algorithm: 'RSA 2048',
   keySize: 2048,
@@ -31,14 +32,23 @@ const mockCert: Certificate = {
   owner: 'time-pagamentos',
   team: null,
   application: 'payments-api',
-  environment: 'prd',
+  environment: 'PRD',
   zone: 'bank-prd',
-  caName: 'Vault PKI Intermediate CA',
+  caName: 'Vault PKI',
   caProvider: 'Vault PKI',
+  importSource: 'MANUAL',
   sourceFile: null,
   revoked: false,
   revokedAt: null,
   revocationReason: null,
+  csrSource: null,
+  validityDays: null,
+  renewalParentId: null,
+  renewalChildId: null,
+  revocationReasonCode: null,
+  revocationJustification: null,
+  revokedBy: null,
+  keyAlgorithm: null,
   tags: { team: 'payments', tier: 'p0' },
   customFields: {},
   description: 'API principal de pagamentos',
@@ -69,7 +79,7 @@ describe('MetadataGrid', () => {
     expect(screen.getByText('bank-prd')).toBeDefined();
 
     // Environment
-    expect(screen.getByText('prd')).toBeDefined();
+    expect(screen.getByText('PRD')).toBeDefined();
 
     // CA Provider
     expect(screen.getByText('Vault PKI')).toBeDefined();

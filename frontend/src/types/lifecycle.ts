@@ -17,7 +17,7 @@ export type CertificateStatus =
   | 'expired'
   | 'revoked';
 
-/** RFC 5280 revocation reason code */
+/** RFC 5280 revocation reason code (for RevocationModal dropdown) */
 export interface RevocationReason {
   code: number;
   label: string;
@@ -61,14 +61,16 @@ export const RFC5280_REASONS: RevocationReason[] = [
   },
 ];
 
-/** Extended certificate with lifecycle fields (optional, graceful for old API) */
+/**
+ * Extended certificate type with optional extra display fields.
+ *
+ * Certificate in shared types now includes core lifecycle fields
+ * (renewalParentId, renewalChildId, revocationJustification, revokedBy, etc.).
+ * This type adds optional display-only fields (CN snapshots for renewal links).
+ */
 export interface CertificateWithLifecycle extends Certificate {
-  renewalParentId?: string | null;
-  renewalChildId?: string | null;
   renewalParentCn?: string | null;
   renewalChildCn?: string | null;
-  revocationJustification?: string | null;
-  revokedBy?: string | null;
 }
 
 /** Params for renewal API call */

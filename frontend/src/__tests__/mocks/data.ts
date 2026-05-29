@@ -1,4 +1,11 @@
-import type { Certificate, AuditLogEntry, PaginatedResponse, TimelineEvent } from '@certificado-digital/shared';
+import type {
+  Certificate,
+  AuditEntry,
+  AuditLogEntry,
+  LifecycleAuditDetails,
+  PaginatedResponse,
+  TimelineEvent,
+} from '@certificado-digital/shared';
 
 /**
  * Factory functions for generating test certificate data.
@@ -37,18 +44,27 @@ export function createCertificate(overrides: Partial<Certificate> = {}): Certifi
     owner: 'time-plataforma',
     team: null,
     application: 'service-app',
-    environment: 'prd',
+    environment: 'PRD',
     zone: 'bank-prd',
-    caName: 'Bank Internal CA',
-    caProvider: 'Vault PKI',
+    caName: 'Vault PKI',
+    caProvider: 'HashiCorp Vault',
     importSource: 'MANUAL' as const,
     sourceFile: null,
     revoked: false,
     revokedAt: null,
     revocationReason: null,
+    // Lifecycle fields (null by default for imported/non-lifecycle certs)
+    csrSource: null,
+    validityDays: null,
+    renewalParentId: null,
+    renewalChildId: null,
+    revocationReasonCode: null,
+    revocationJustification: null,
+    revokedBy: null,
+    keyAlgorithm: null,
     tags: {},
     customFields: {},
-    description: '',
+    description: null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
     ...overrides,
@@ -81,7 +97,15 @@ export function createExpiredCertificate(
  * Creates a revoked certificate.
  */
 export function createRevokedCertificate(overrides: Partial<Certificate> = {}): Certificate {
-  return createCertificate({ revoked: true, ...overrides });
+  return createCertificate({
+    revoked: true,
+    status: 'REVOKED',
+    revokedAt: new Date().toISOString(),
+    revocationReasonCode: 'keyCompromise',
+    revocationJustification: 'Key compromised during audit',
+    revokedBy: 'rafael.costa',
+    ...overrides,
+  });
 }
 
 /**
@@ -98,6 +122,19 @@ export function createLongCnCertificate(): Certificate {
 export function createManySansCertificate(): Certificate {
   const sans = Array.from({ length: 120 }, (_, i) => `san-${i}.bank.internal`);
   return createCertificate({ sans });
+}
+
+/**
+ * Creates a lifecycle-issued certificate with all lifecycle fields populated.
+ */
+export function createLifecycleCertificate(overrides: Partial<Certificate> = {}): Certificate {
+  return createCertificate({
+    csrSource: 'generate',
+    validityDays: 365,
+    keyAlgorithm: 'RSA-2048',
+    status: 'ACTIVE',
+    ...overrides,
+  });
 }
 
 /**
@@ -136,20 +173,21 @@ let auditIdCounter = 0;
 /**
  * Creates a single audit log entry.
  */
-export function createAuditEntry(overrides: Partial<AuditLogEntry> = {}): AuditLogEntry {
+export function createAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   const id = overrides.id ?? `audit-${++auditIdCounter}`;
-  return {
+  const base: AuditEntry = {
     id,
-    certId: 'cert-1',
+    certificateId: 'cert-1',
     certCn: 'api-payments.bank.internal',
     action: 'CREATE',
     actor: 'rafael.costa',
     result: 'SUCCESS',
     detail: 'Certificate created via UI',
     batchId: null,
+    changes: null,
     timestamp: new Date().toISOString(),
-    ...overrides,
   };
+  return { ...base, ...overrides } as AuditEntry;
 }
 
 let timelineIdCounter = 0;
@@ -159,17 +197,15 @@ let timelineIdCounter = 0;
  */
 export function createTimelineEvent(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
   const id = overrides.id ?? `tl-${++timelineIdCounter}`;
-  return {
+  const base: TimelineEvent = {
     id,
-    certificateId: 'cert-1',
-    action: 'CREATED',
+    type: 'ISSUED',
     actor: 'rafael.costa',
     timestamp: new Date().toISOString(),
-    details: {},
-    relatedCertId: null,
-    result: 'SUCCESS',
-    ...overrides,
+    detail: null,
+    relatedCertificateId: null,
   };
+  return { ...base, ...overrides } as TimelineEvent;
 }
 
 /**
@@ -182,66 +218,63 @@ export function createSampleTimeline(certId: string): TimelineEvent[] {
   return [
     createTimelineEvent({
       id: `tl-${certId}-1`,
-      certificateId: certId,
-      action: 'CREATED',
+      type: 'ISSUED',
       actor: 'rafael.costa',
       timestamp: new Date(now - 90 * day).toISOString(),
-      details: { caName: 'Vault PKI', algorithm: 'RSA 2048', cn: 'api-payments.bank.internal' },
-      result: 'SUCCESS',
+      detail: 'Certificate issued via Vault PKI',
     }),
     createTimelineEvent({
       id: `tl-${certId}-2`,
-      certificateId: certId,
-      action: 'ISSUED',
+      type: 'ACTIVATED',
       actor: 'vault-agent',
       timestamp: new Date(now - 90 * day + 5000).toISOString(),
-      details: { caName: 'Vault PKI', algorithm: 'RSA 2048', cn: 'api-payments.bank.internal' },
-      result: 'SUCCESS',
+      detail: 'Certificate activated after deployment',
     }),
     createTimelineEvent({
       id: `tl-${certId}-3`,
-      certificateId: certId,
-      action: 'NOTIFICATION_SENT',
+      type: 'NOTIFICATION_SENT',
       actor: 'system',
       timestamp: new Date(now - 30 * day).toISOString(),
-      details: { recipient: 'time-pagamentos@bank.internal', subject: 'Certificate expiring in 30 days' },
-      result: 'SUCCESS',
+      detail: 'Expiration warning: 30 days remaining',
     }),
     createTimelineEvent({
       id: `tl-${certId}-4`,
-      certificateId: certId,
-      action: 'RENEWED',
+      type: 'RENEWED',
       actor: 'rafael.costa',
       timestamp: new Date(now - 7 * day).toISOString(),
-      details: { oldCertId: 'cert-old-123', newCertId: 'cert-new-456', rotateKey: false },
-      relatedCertId: 'cert-new-456',
-      result: 'SUCCESS',
+      detail: 'Certificate renewed (key rotation: false)',
+      relatedCertificateId: 'cert-new-456',
     }),
     createTimelineEvent({
       id: `tl-${certId}-5`,
-      certificateId: certId,
-      action: 'KEY_ROTATED',
+      type: 'KEY_ROTATED',
       actor: 'rafael.costa',
       timestamp: new Date(now - 2 * day).toISOString(),
-      details: { oldAlgorithm: 'RSA 2048', newAlgorithm: 'ECDSA P-256' },
-      result: 'SUCCESS',
+      detail: 'Key rotated: RSA 2048 → ECDSA P-256',
     }),
   ];
 }
 
 /**
- * Creates a lifecycle-enriched audit entry.
+ * Creates a lifecycle-enriched audit log entry (frontend format).
  */
-export function createLifecycleAuditEntry(overrides: Partial<AuditLogEntry> = {}): AuditLogEntry {
-  return createAuditEntry({
+export function createLifecycleAuditEntry(
+  overrides: Partial<AuditLogEntry & { lifecycleDetails?: LifecycleAuditDetails }> = {},
+): AuditLogEntry {
+  const id = overrides.id ?? `audit-${++auditIdCounter}`;
+  const base: AuditLogEntry = {
+    id,
+    certId: 'cert-1',
+    certCn: 'api-payments.bank.internal',
     action: 'ISSUE',
-    lifecycleDetails: {
-      caName: 'Vault PKI',
-      algorithm: 'RSA 2048',
-      cn: 'api-payments.bank.internal',
-    },
-    ...overrides,
-  });
+    actor: 'rafael.costa',
+    result: 'SUCCESS',
+    detail: 'Certificate issued via mTLS Control Plane',
+    batchId: null,
+    timestamp: new Date().toISOString(),
+    lifecycleDetails: null,
+  };
+  return { ...base, ...overrides };
 }
 
 /**

@@ -23,11 +23,11 @@ describe('Mock data factories', () => {
       expect(cert.id).toBeDefined();
       expect(cert.commonName).toBeDefined();
       expect(cert.sans).toBeInstanceOf(Array);
-      expect(cert.serial).toBeDefined();
-      expect(cert.issuer).toBeDefined();
+      expect(cert.serialNumber).toBeDefined();
+      expect(cert.issuerDn).toBeDefined();
       expect(cert.notBefore).toBeDefined();
       expect(cert.notAfter).toBeDefined();
-      expect(cert.algorithm).toBeDefined();
+      expect(cert.signatureAlgorithm).toBeDefined();
       expect(cert.environment).toBeDefined();
       expect(cert.zone).toBeDefined();
       expect(cert.caProvider).toBeDefined();
@@ -37,6 +37,18 @@ describe('Mock data factories', () => {
     it('allows overriding fields', () => {
       const cert = createCertificate({ commonName: 'custom.bank.internal' });
       expect(cert.commonName).toBe('custom.bank.internal');
+    });
+
+    it('includes lifecycle fields with null defaults', () => {
+      const cert = createCertificate();
+      expect(cert.csrSource).toBeNull();
+      expect(cert.validityDays).toBeNull();
+      expect(cert.renewalParentId).toBeNull();
+      expect(cert.renewalChildId).toBeNull();
+      expect(cert.revocationReasonCode).toBeNull();
+      expect(cert.revocationJustification).toBeNull();
+      expect(cert.revokedBy).toBeNull();
+      expect(cert.keyAlgorithm).toBeNull();
     });
   });
 
@@ -60,9 +72,13 @@ describe('Mock data factories', () => {
   });
 
   describe('createRevokedCertificate', () => {
-    it('creates a cert with revoked=true', () => {
+    it('creates a cert with revoked=true and lifecycle revocation fields', () => {
       const cert = createRevokedCertificate();
       expect(cert.revoked).toBe(true);
+      expect(cert.status).toBe('REVOKED');
+      expect(cert.revocationReasonCode).toBe('keyCompromise');
+      expect(cert.revocationJustification).toBeDefined();
+      expect(cert.revokedBy).toBeDefined();
     });
   });
 

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { TimelineEvent, TimelineAction, AuditResult } from '@certificado-digital/shared';
+import type { TimelineEvent, TimelineEventType } from '@certificado-digital/shared';
 import { useCertificateTimeline } from '@/hooks/useCertificateTimeline';
 import styles from './Timeline.module.css';
 
@@ -7,22 +7,24 @@ interface TimelineProps {
   certificateId: string;
 }
 
-/** Map action types to human-readable labels */
-const ACTION_LABELS: Record<TimelineAction, string> = {
-  CREATED: 'Created',
+/** Map event types to human-readable labels */
+const ACTION_LABELS: Record<TimelineEventType, string> = {
   ISSUED: 'Issued',
+  ACTIVATED: 'Activated',
   RENEWED: 'Renewed',
   REVOKED: 'Revoked',
+  EXPIRED: 'Expired',
   KEY_ROTATED: 'Key Rotated',
   NOTIFICATION_SENT: 'Notification',
 };
 
-/** Map action types to CSS class names for color coding */
-const ACTION_CSS: Record<TimelineAction, string> = {
-  CREATED: 'created',
+/** Map event types to CSS class names for color coding */
+const ACTION_CSS: Record<TimelineEventType, string> = {
   ISSUED: 'issued',
+  ACTIVATED: 'issued',
   RENEWED: 'renewed',
   REVOKED: 'revoked',
+  EXPIRED: 'revoked',
   KEY_ROTATED: 'keyRotated',
   NOTIFICATION_SENT: 'notificationSent',
 };
@@ -50,57 +52,17 @@ function getInitials(actor: string): string {
     .join('');
 }
 
-/** Render lifecycle-specific detail lines */
+/** Render event detail text */
 function renderEventDetails(event: TimelineEvent): React.ReactNode {
-  const d = event.details;
-  if (!d || Object.keys(d).length === 0) return null;
-
-  const lines: Array<{ key: string; value: string }> = [];
-
-  switch (event.action) {
-    case 'CREATED':
-    case 'ISSUED':
-      if (d.caName) lines.push({ key: 'CA', value: String(d.caName) });
-      if (d.algorithm) lines.push({ key: 'Algorithm', value: String(d.algorithm) });
-      if (d.cn) lines.push({ key: 'CN', value: String(d.cn) });
-      break;
-    case 'RENEWED':
-      if (d.oldCertId) lines.push({ key: 'Old cert', value: String(d.oldCertId) });
-      if (d.newCertId) lines.push({ key: 'New cert', value: String(d.newCertId) });
-      if (d.rotateKey !== undefined)
-        lines.push({ key: 'Key rotated', value: d.rotateKey ? 'yes' : 'no' });
-      break;
-    case 'REVOKED':
-      if (d.reasonCode) lines.push({ key: 'Reason', value: String(d.reasonCode) });
-      if (d.justification)
-        lines.push({ key: 'Justification', value: String(d.justification) });
-      break;
-    case 'KEY_ROTATED':
-      if (d.oldAlgorithm) lines.push({ key: 'From', value: String(d.oldAlgorithm) });
-      if (d.newAlgorithm) lines.push({ key: 'To', value: String(d.newAlgorithm) });
-      break;
-    case 'NOTIFICATION_SENT':
-      if (d.recipient) lines.push({ key: 'To', value: String(d.recipient) });
-      if (d.subject) lines.push({ key: 'Subject', value: String(d.subject) });
-      break;
-  }
-
-  if (lines.length === 0) return null;
+  if (!event.detail) return null;
 
   return (
     <div className={styles.eventDetails}>
-      {lines.map((l) => (
-        <div key={l.key}>
-          <span className={styles.detailKey}>{l.key}:</span>{' '}
-          <span className={styles.detailValue}>{l.value}</span>
-        </div>
-      ))}
+      <div>
+        <span className={styles.detailValue}>{event.detail}</span>
+      </div>
     </div>
   );
-}
-
-function resultClass(result: AuditResult): string {
-  return result === 'SUCCESS' ? styles.success : styles.fail;
 }
 
 function TimelineLoading() {
@@ -142,12 +104,13 @@ function TimelineEmpty() {
 }
 
 export function Timeline({ certificateId }: TimelineProps) {
-  const { data: events, isLoading } = useCertificateTimeline(certificateId);
+  const { data: timeline, isLoading } = useCertificateTimeline(certificateId);
 
   if (isLoading) {
     return <TimelineLoading />;
   }
 
+  const events = timeline?.events;
   const hasEvents = events && events.length > 0;
 
   return (
@@ -164,7 +127,7 @@ export function Timeline({ certificateId }: TimelineProps) {
       ) : (
         <div className={styles.timeline}>
           {events.map((event) => {
-            const cssVariant = ACTION_CSS[event.action] ?? 'created';
+            const cssVariant = ACTION_CSS[event.type] ?? 'issued';
             return (
               <div
                 key={event.id}
@@ -178,16 +141,13 @@ export function Timeline({ certificateId }: TimelineProps) {
 
                 {/* Card */}
                 <div className={styles.eventCard}>
-                  {/* Header: badge + timestamp + result */}
+                  {/* Header: badge + timestamp */}
                   <div className={styles.eventHeader}>
                     <span className={`${styles.actionBadge} ${styles[cssVariant] ?? ''}`}>
-                      {ACTION_LABELS[event.action] ?? event.action}
+                      {ACTION_LABELS[event.type] ?? event.type}
                     </span>
                     <span className={styles.eventTimestamp}>
                       {formatTimestamp(event.timestamp)}
-                    </span>
-                    <span className={`${styles.eventResult} ${resultClass(event.result)}`}>
-                      {event.result}
                     </span>
                   </div>
 
@@ -201,9 +161,9 @@ export function Timeline({ certificateId }: TimelineProps) {
                   {renderEventDetails(event)}
 
                   {/* Related cert link */}
-                  {event.relatedCertId && (
+                  {event.relatedCertificateId && (
                     <Link
-                      to={`/certificates/${event.relatedCertId}`}
+                      to={`/certificates/${event.relatedCertificateId}`}
                       className={styles.relatedLink}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24">

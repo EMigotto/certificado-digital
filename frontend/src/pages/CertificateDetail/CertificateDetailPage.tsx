@@ -46,7 +46,7 @@ export default function CertificateDetailPage() {
 
   const [activeModal, setActiveModal] = useState<ModalState>(null);
 
-  // Cast cert to extended type for lifecycle fields
+  // Certificate now has lifecycle fields directly (shared types updated)
   const certLifecycle = cert as CertificateWithLifecycle | undefined;
 
   const { status, daysUntilExpiry } = useMemo(() => {
@@ -109,11 +109,18 @@ export default function CertificateDetailPage() {
     notifyOwner: boolean;
   }) => {
     renewMutation.mutate(
-      { id: certLifecycle.id, params },
+      {
+        id: certLifecycle.id,
+        params: {
+          validityDays: params.validityDays,
+          rotateKey: params.rotateKey,
+          keyAlgorithm: params.rotateKey ? certLifecycle.keyAlgorithm : null,
+        },
+      },
       {
         onSuccess: (data) => {
           setActiveModal(null);
-          navigate(`/certificates/${data.newCertificateId}`);
+          navigate(`/certificates/${data.certificate.id}`);
         },
       },
     );
@@ -125,7 +132,13 @@ export default function CertificateDetailPage() {
     notifyOwner: boolean;
   }) => {
     revokeMutation.mutate(
-      { id: certLifecycle.id, params },
+      {
+        id: certLifecycle.id,
+        params: {
+          reasonCode: 'unspecified',
+          justification: params.justification,
+        },
+      },
       {
         onSuccess: () => {
           setActiveModal(null);

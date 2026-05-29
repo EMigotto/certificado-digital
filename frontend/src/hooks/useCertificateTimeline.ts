@@ -1,14 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { getCertificateTimeline } from '@/services/timelineApi';
+import { getCertificateTimeline } from '@/services/lifecycleApi';
 
 /**
- * Fetches the lifecycle timeline for a given certificate.
- * Returns chronological events: CREATED, ISSUED, RENEWED, REVOKED, KEY_ROTATED, NOTIFICATION_SENT.
+ * Query hook for fetching a certificate's lifecycle timeline.
+ *
+ * Returns chronological events: ISSUED, ACTIVATED, RENEWED, REVOKED,
+ * KEY_ROTATED, NOTIFICATION_SENT.
+ *
+ * Disabled when no certificate ID is provided.
  */
-export function useCertificateTimeline(certificateId: string | undefined) {
+export function useCertificateTimeline(id: string | undefined) {
   return useQuery({
-    queryKey: ['certificate-timeline', certificateId],
-    queryFn: () => getCertificateTimeline(certificateId!),
-    enabled: !!certificateId,
+    queryKey: ['certificate-timeline', id],
+    queryFn: () => getCertificateTimeline(id!),
+    enabled: !!id,
+    staleTime: 30_000,
   });
 }

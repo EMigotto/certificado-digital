@@ -2,6 +2,9 @@ import type { CertificateStatus } from '@/types/lifecycle';
 import { Badge, type BadgeVariant } from '@/components/Badge/Badge';
 import styles from '../CertificateDetailPage.module.css';
 
+/** Re-export for backward compatibility */
+export type DetailStatus = CertificateStatus;
+
 interface DetailHeaderProps {
   commonName: string;
   status: CertificateStatus;
@@ -51,10 +54,10 @@ export function DetailHeader({
       </div>
 
       <div className={styles.detailMeta}>
-        <span className={`${styles.envTag} ${environment === 'prd' ? styles.prd : ''}`}>
+        <span className={`${styles.envTag} ${environment === 'PRD' ? styles.prd : ''}`}>
           {caProvider}
         </span>
-        <span className={`${styles.envTag} ${environment === 'prd' ? styles.prd : ''}`}>
+        <span className={`${styles.envTag} ${environment === 'PRD' ? styles.prd : ''}`}>
           {environment}
         </span>
         <span className={styles.ownerMeta}>owner: {owner}</span>

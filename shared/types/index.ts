@@ -14,6 +14,21 @@ export type {
   Certificate,
   CertificateCreate,
   CertificateUpdate,
+  CsrSource,
+  RevocationReasonCode,
+  KeyAlgorithm,
+  CaConfig,
+  IssueCertificateRequest,
+  IssueCertificateResponse,
+  RenewCertificateRequest,
+  RenewCertificateResponse,
+  RevokeCertificateRequest,
+  RevokeCertificateResponse,
+  TimelineEventType,
+  TimelineEvent,
+  CertificateTimeline,
+  RenewalOptions,
+  RevocationReasonOption,
 } from './certificate.js';
 
 // Audit log types
@@ -26,7 +41,6 @@ export type {
   LifecycleAuditDetails,
   AuditFilterParams,
   TimelineAction,
-  TimelineEvent,
 } from './audit.js';
 
 // Filter / sort / pagination types

@@ -15,6 +15,10 @@ function statusBadge(status: CertStatus): { variant: BadgeVariant; label: string
     EXPIRING_SOON: { variant: 'warn', label: 'Atenção' },
     EXPIRED: { variant: 'crit', label: 'Vencido' },
     REVOKED: { variant: 'rev', label: 'Revogado' },
+    PENDING: { variant: 'warn', label: 'Pendente' },
+    ISSUED: { variant: 'ok', label: 'Emitido' },
+    ACTIVE: { variant: 'ok', label: 'Ativo' },
+    RENEWED: { variant: 'ok', label: 'Renovado' },
   };
   return map[status] ?? { variant: 'ok', label: status };
 }
