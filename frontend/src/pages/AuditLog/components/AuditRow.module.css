@@ -110,3 +110,32 @@
   border-radius: 3px;
   margin-left: 6px;
 }
+
+/* === Lifecycle action verb color variants === */
+.verbOk {
+  color: var(--ok);
+}
+
+.verbBlue {
+  color: var(--accent-2);
+}
+
+.verbCrit {
+  color: var(--crit);
+}
+
+.verbRev {
+  color: var(--rev);
+}
+
+.verbMute {
+  color: var(--text-mute);
+}
+
+/* === Lifecycle detail inline text === */
+.lifecycleDetail {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-mute);
+  margin-left: 4px;
+}

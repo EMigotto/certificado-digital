@@ -7,7 +7,9 @@
 // Certificate domain types
 export type {
   CertStatus,
+  CertificateStatus,
   Environment,
+  EnvironmentLike,
   ImportSource,
   Certificate,
   CertificateCreate,
@@ -20,7 +22,11 @@ export type {
   AuditResult,
   AuditChange,
   AuditEntry,
+  AuditLogEntry,
+  LifecycleAuditDetails,
   AuditFilterParams,
+  TimelineAction,
+  TimelineEvent,
 } from './audit.js';
 
 // Filter / sort / pagination types

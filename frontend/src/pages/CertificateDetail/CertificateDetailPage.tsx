@@ -10,6 +10,7 @@ import { useRevokeCertificateWithReason } from '@/hooks/useRevokeCertificateWith
 import { DetailHeader } from './components/DetailHeader';
 import { MetadataGrid } from './components/MetadataGrid';
 import { SanList } from './components/SanList';
+import { Timeline } from './components/Timeline';
 import { ActionPanel } from './components/ActionPanel';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { RenewalModal } from './components/RenewalModal';
@@ -185,7 +186,7 @@ export default function CertificateDetailPage() {
 
       {/* Two-column layout */}
       <div className={styles.detailGrid}>
-        {/* Left — Metadata + SANs */}
+        {/* Left — Metadata + SANs + Timeline */}
         <div>
           <MetadataGrid
             cert={certLifecycle}
@@ -194,6 +195,9 @@ export default function CertificateDetailPage() {
           />
           <div style={{ marginTop: '20px' }}>
             <SanList sans={certLifecycle.sans} />
+          </div>
+          <div style={{ marginTop: '20px' }}>
+            <Timeline certificateId={certLifecycle.id} />
           </div>
         </div>
 

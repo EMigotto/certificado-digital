@@ -41,7 +41,7 @@ export const columns = [
     id: 'status',
     header: 'Status',
     cell: (info) => {
-      const { variant, label } = statusBadge(info.getValue());
+      const { variant, label } = statusBadge(info.getValue() ?? 'VALID');
       return <Badge variant={variant}>{label}</Badge>;
     },
     enableSorting: true,

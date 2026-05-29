@@ -1,12 +1,12 @@
-import type { Environment } from '@certificado-digital/shared';
+import type { EnvironmentLike } from '@certificado-digital/shared';
 
 interface EnvTagProps {
   zone: string | null;
-  environment: Environment;
+  environment: EnvironmentLike;
 }
 
 export function EnvTag({ zone, environment }: EnvTagProps) {
-  const isPrd = environment === 'PRD';
+  const isPrd = environment.toUpperCase() === 'PRD';
   const label = zone ? `${zone} / ${environment.toLowerCase()}` : environment.toLowerCase();
   return (
     <span

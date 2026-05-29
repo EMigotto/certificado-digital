@@ -1,0 +1,331 @@
+/* === Certificate lifecycle timeline === */
+/* Dark theme vertical timeline with connecting lines, event dots, and cards */
+
+.timelinePanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panelSub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+/* === Timeline track === */
+.timeline {
+  position: relative;
+  padding-left: 32px;
+}
+
+/* Vertical connecting line */
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--border-2);
+}
+
+/* === Individual event node === */
+.eventNode {
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.eventNode:last-child {
+  padding-bottom: 0;
+}
+
+/* Event dot on the timeline track */
+.eventDot {
+  position: absolute;
+  left: -32px;
+  top: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--border-2);
+  background: var(--surface);
+  z-index: 1;
+}
+
+.eventDotInner {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-2);
+}
+
+/* Color variants for the dot */
+.eventNode.created .eventDot {
+  border-color: var(--ok);
+}
+
+.eventNode.created .eventDotInner {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+}
+
+.eventNode.issued .eventDot {
+  border-color: var(--ok);
+}
+
+.eventNode.issued .eventDotInner {
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+}
+
+.eventNode.renewed .eventDot {
+  border-color: var(--accent-2);
+}
+
+.eventNode.renewed .eventDotInner {
+  background: var(--accent-2);
+  box-shadow: 0 0 6px var(--accent-2);
+}
+
+.eventNode.revoked .eventDot {
+  border-color: var(--crit);
+}
+
+.eventNode.revoked .eventDotInner {
+  background: var(--crit);
+  box-shadow: 0 0 6px var(--crit);
+}
+
+.keyRotated .eventDot {
+  border-color: var(--rev);
+}
+
+.keyRotated .eventDotInner {
+  background: var(--rev);
+  box-shadow: 0 0 6px var(--rev);
+}
+
+.notificationSent .eventDot {
+  border-color: var(--text-mute);
+}
+
+.notificationSent .eventDotInner {
+  background: var(--text-mute);
+}
+
+/* === Event card (content) === */
+.eventCard {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.eventCard:hover {
+  border-color: var(--border-2);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.eventHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+/* Action type badge */
+.actionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.actionBadge.created,
+.actionBadge.issued {
+  background: rgba(74, 222, 128, 0.1);
+  color: var(--ok);
+}
+
+.actionBadge.renewed {
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-2);
+}
+
+.actionBadge.revoked {
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--crit);
+}
+
+.actionBadge.keyRotated {
+  background: rgba(167, 139, 250, 0.1);
+  color: var(--rev);
+}
+
+.actionBadge.notificationSent {
+  background: rgba(90, 100, 120, 0.15);
+  color: var(--text-mute);
+}
+
+.eventTimestamp {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.eventResult {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: auto;
+}
+
+.eventResult.success {
+  color: var(--ok);
+}
+
+.eventResult.fail {
+  color: var(--crit);
+}
+
+/* Actor row */
+.eventActor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.actorAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--bg);
+  font-size: 8px;
+  flex-shrink: 0;
+}
+
+/* Details block */
+.eventDetails {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-mute);
+  line-height: 1.6;
+}
+
+.detailKey {
+  color: var(--text-dim);
+}
+
+.detailValue {
+  color: var(--text);
+}
+
+/* Related certificate link */
+.relatedLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  text-decoration: none;
+  margin-top: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.relatedLink:hover {
+  opacity: 0.8;
+}
+
+/* === Empty state === */
+.emptyState {
+  padding: 40px 20px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-mute);
+}
+
+.emptyIcon {
+  color: var(--text-mute);
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+/* === Loading skeleton === */
+.skeletonNode {
+  position: relative;
+  padding-bottom: 24px;
+  padding-left: 0;
+}
+
+.skeletonCard {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.skeletonBar {
+  height: 10px;
+  border-radius: 4px;
+  background: var(--border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.skeletonBarShort {
+  width: 40%;
+}
+
+.skeletonBarMed {
+  width: 65%;
+  margin-top: 8px;
+}
+
+.skeletonBarLong {
+  width: 90%;
+  margin-top: 8px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}

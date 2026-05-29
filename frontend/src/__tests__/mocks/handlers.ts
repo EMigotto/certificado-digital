@@ -1,9 +1,12 @@
 import { http, HttpResponse } from 'msw';
+import type { AuditAction } from '@certificado-digital/shared';
 import {
   createCertificate,
   createCertificateList,
   createPaginatedResponse,
   createAuditEntry,
+  createSampleTimeline,
+  createLifecycleAuditEntry,
 } from './data';
 
 /**
@@ -44,6 +47,15 @@ export const handlers = [
     const paged = filtered.slice(start, start + pageSize);
 
     return HttpResponse.json(createPaginatedResponse(paged, page, pageSize, filtered.length));
+  }),
+
+  // GET /api/certificates/:id/timeline — certificate lifecycle timeline
+  http.get('/api/certificates/:id/timeline', ({ params }) => {
+    const { id } = params;
+    if (id === 'no-timeline') {
+      return HttpResponse.json([]);
+    }
+    return HttpResponse.json(createSampleTimeline(id as string));
   }),
 
   // GET /api/certificates/:id — single certificate detail
@@ -123,20 +135,93 @@ export const handlers = [
     });
   }),
 
-  // GET /api/audit — audit log
+  // GET /api/audit — audit log (includes lifecycle events)
   http.get('/api/audit', ({ request }) => {
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') ?? '1', 10);
     const pageSize = parseInt(url.searchParams.get('pageSize') ?? '25', 10);
 
-    const entries = Array.from({ length: 5 }, (_, i) =>
-      createAuditEntry({
-        id: `audit-${i + 1}`,
-        action: (['CREATE', 'UPDATE', 'DELETE', 'REVOKE'] as const)[i % 4],
-        certCn: `service-${i + 1}.bank.internal`,
-      }),
-    );
+    const actions: AuditAction[] = [
+      'CREATE',
+      'ISSUE',
+      'RENEW',
+      'REVOKE',
+      'KEY_ROTATED',
+      'NOTIFICATION_SENT',
+      'UPDATE',
+      'DELETE',
+    ];
 
-    return HttpResponse.json(createPaginatedResponse(entries, page, pageSize, 5));
+    const entries = actions.map((action, i) => {
+      if (action === 'ISSUE') {
+        return createLifecycleAuditEntry({
+          id: `audit-${i + 1}`,
+          action: 'ISSUE',
+          certCn: `service-${i + 1}.bank.internal`,
+          lifecycleDetails: {
+            caName: 'Vault PKI',
+            algorithm: 'RSA 2048',
+            cn: `service-${i + 1}.bank.internal`,
+          },
+        });
+      }
+      if (action === 'RENEW') {
+        return createLifecycleAuditEntry({
+          id: `audit-${i + 1}`,
+          action: 'RENEW',
+          certCn: `service-${i + 1}.bank.internal`,
+          lifecycleDetails: {
+            oldCertId: 'cert-old-123',
+            newCertId: 'cert-new-456',
+            rotateKey: true,
+          },
+        });
+      }
+      if (action === 'REVOKE') {
+        return createLifecycleAuditEntry({
+          id: `audit-${i + 1}`,
+          action: 'REVOKE',
+          certCn: `service-${i + 1}.bank.internal`,
+          lifecycleDetails: {
+            reasonCode: 'keyCompromise',
+            justification: 'Key exposed in log files',
+          },
+        });
+      }
+      if (action === 'KEY_ROTATED') {
+        return createLifecycleAuditEntry({
+          id: `audit-${i + 1}`,
+          action: 'KEY_ROTATED',
+          certCn: `service-${i + 1}.bank.internal`,
+          lifecycleDetails: {
+            oldAlgorithm: 'RSA 2048',
+            newAlgorithm: 'ECDSA P-256',
+          },
+        });
+      }
+      if (action === 'NOTIFICATION_SENT') {
+        return createLifecycleAuditEntry({
+          id: `audit-${i + 1}`,
+          action: 'NOTIFICATION_SENT',
+          certCn: `service-${i + 1}.bank.internal`,
+          lifecycleDetails: {
+            recipient: 'team-platform@bank.internal',
+            subject: 'Certificate expiring in 7 days',
+          },
+        });
+      }
+      return createAuditEntry({
+        id: `audit-${i + 1}`,
+        action,
+        certCn: `service-${i + 1}.bank.internal`,
+      });
+    });
+
+    return HttpResponse.json(createPaginatedResponse(entries, page, pageSize, entries.length));
+  }),
+
+  // GET /api/audit/export — export audit log as CSV/JSON blob
+  http.get('/api/audit/export', () => {
+    return HttpResponse.text('id,action,certCn,actor,result,timestamp\n');
   }),
 ];

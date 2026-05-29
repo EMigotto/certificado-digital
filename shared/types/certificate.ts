@@ -8,11 +8,17 @@
 /** Certificate status derived from validity dates and revocation state */
 export type CertStatus = 'VALID' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED';
 
+/** Frontend display status (used in detail page and badges) */
+export type CertificateStatus = 'active' | 'expiring' | 'expired' | 'revoked';
+
 /** Deployment environment */
 export type Environment = 'DEV' | 'HML' | 'PRD';
 
 /** How the certificate was imported into the system */
 export type ImportSource = 'MANUAL' | 'CSV_IMPORT' | 'API_SYNC' | 'CERTIFICATE_FILE';
+
+/** Deployment environment — accepts lowercase for frontend convenience */
+export type EnvironmentLike = Environment | 'dev' | 'hml' | 'prd';
 
 /** Core certificate metadata — 30+ fields covering identity, validity, crypto, org context, system */
 export interface Certificate {
@@ -24,14 +30,18 @@ export interface Certificate {
   issuerDn: string | null;
   sans: string[];
   serialNumber: string;
+  /** Alias — short field name used by frontend components */
+  serial?: string;
 
   // Validity
   notBefore: string; // ISO-8601
   notAfter: string; // ISO-8601
-  status: CertStatus;
+  status?: CertStatus;
 
   // Cryptography
   signatureAlgorithm: string;
+  /** Alias — short field name used by frontend components */
+  algorithm?: string;
   keySize: number | null;
   fingerprintSha256: string;
   fingerprintSha1: string | null;
@@ -40,15 +50,17 @@ export interface Certificate {
   owner: string;
   team: string | null;
   application: string;
-  environment: Environment;
+  environment: EnvironmentLike;
   zone: string | null;
 
   // CA / Provider
   caName: string;
   caProvider: string | null;
+  /** Alias — short field name used by frontend components */
+  issuer?: string;
 
   // Import metadata
-  importSource: ImportSource;
+  importSource?: ImportSource;
   sourceFile: string | null;
 
   // Revocation

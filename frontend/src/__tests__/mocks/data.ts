@@ -1,4 +1,4 @@
-import type { Certificate, AuditLogEntry, PaginatedResponse } from '@certificado-digital/shared';
+import type { Certificate, AuditLogEntry, PaginatedResponse, TimelineEvent } from '@certificado-digital/shared';
 
 /**
  * Factory functions for generating test certificate data.
@@ -20,19 +20,32 @@ export function createCertificate(overrides: Partial<Certificate> = {}): Certifi
   return {
     id,
     commonName: `service-${id}.bank.internal`,
+    subjectDn: `CN=service-${id}.bank.internal, O=Bank Corp`,
+    issuerDn: 'CN=Bank Internal CA, O=Bank Corp',
     sans: [`service-${id}.bank.internal`, `service-${id}-v2.bank.internal`],
+    serialNumber: `AA:BB:CC:DD:${id.slice(-2).toUpperCase().padStart(2, '0')}`,
     serial: `AA:BB:CC:DD:${id.slice(-2).toUpperCase().padStart(2, '0')}`,
     issuer: 'CN=Bank Internal CA, O=Bank Corp',
     notBefore: notBefore.toISOString(),
     notAfter: notAfter.toISOString(),
+    status: 'VALID' as const,
+    signatureAlgorithm: 'RSA 2048',
     algorithm: 'RSA 2048',
+    keySize: 2048,
     fingerprintSha256: `SHA256:${id}:AABBCCDD`,
+    fingerprintSha1: null,
     owner: 'time-plataforma',
+    team: null,
     application: 'service-app',
     environment: 'prd',
     zone: 'bank-prd',
+    caName: 'Bank Internal CA',
     caProvider: 'Vault PKI',
+    importSource: 'MANUAL' as const,
+    sourceFile: null,
     revoked: false,
+    revokedAt: null,
+    revocationReason: null,
     tags: {},
     customFields: {},
     description: '',
@@ -139,10 +152,103 @@ export function createAuditEntry(overrides: Partial<AuditLogEntry> = {}): AuditL
   };
 }
 
+let timelineIdCounter = 0;
+
+/**
+ * Creates a single timeline event.
+ */
+export function createTimelineEvent(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
+  const id = overrides.id ?? `tl-${++timelineIdCounter}`;
+  return {
+    id,
+    certificateId: 'cert-1',
+    action: 'CREATED',
+    actor: 'rafael.costa',
+    timestamp: new Date().toISOString(),
+    details: {},
+    relatedCertId: null,
+    result: 'SUCCESS',
+    ...overrides,
+  };
+}
+
+/**
+ * Creates a realistic lifecycle timeline for testing.
+ */
+export function createSampleTimeline(certId: string): TimelineEvent[] {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+
+  return [
+    createTimelineEvent({
+      id: `tl-${certId}-1`,
+      certificateId: certId,
+      action: 'CREATED',
+      actor: 'rafael.costa',
+      timestamp: new Date(now - 90 * day).toISOString(),
+      details: { caName: 'Vault PKI', algorithm: 'RSA 2048', cn: 'api-payments.bank.internal' },
+      result: 'SUCCESS',
+    }),
+    createTimelineEvent({
+      id: `tl-${certId}-2`,
+      certificateId: certId,
+      action: 'ISSUED',
+      actor: 'vault-agent',
+      timestamp: new Date(now - 90 * day + 5000).toISOString(),
+      details: { caName: 'Vault PKI', algorithm: 'RSA 2048', cn: 'api-payments.bank.internal' },
+      result: 'SUCCESS',
+    }),
+    createTimelineEvent({
+      id: `tl-${certId}-3`,
+      certificateId: certId,
+      action: 'NOTIFICATION_SENT',
+      actor: 'system',
+      timestamp: new Date(now - 30 * day).toISOString(),
+      details: { recipient: 'time-pagamentos@bank.internal', subject: 'Certificate expiring in 30 days' },
+      result: 'SUCCESS',
+    }),
+    createTimelineEvent({
+      id: `tl-${certId}-4`,
+      certificateId: certId,
+      action: 'RENEWED',
+      actor: 'rafael.costa',
+      timestamp: new Date(now - 7 * day).toISOString(),
+      details: { oldCertId: 'cert-old-123', newCertId: 'cert-new-456', rotateKey: false },
+      relatedCertId: 'cert-new-456',
+      result: 'SUCCESS',
+    }),
+    createTimelineEvent({
+      id: `tl-${certId}-5`,
+      certificateId: certId,
+      action: 'KEY_ROTATED',
+      actor: 'rafael.costa',
+      timestamp: new Date(now - 2 * day).toISOString(),
+      details: { oldAlgorithm: 'RSA 2048', newAlgorithm: 'ECDSA P-256' },
+      result: 'SUCCESS',
+    }),
+  ];
+}
+
+/**
+ * Creates a lifecycle-enriched audit entry.
+ */
+export function createLifecycleAuditEntry(overrides: Partial<AuditLogEntry> = {}): AuditLogEntry {
+  return createAuditEntry({
+    action: 'ISSUE',
+    lifecycleDetails: {
+      caName: 'Vault PKI',
+      algorithm: 'RSA 2048',
+      cn: 'api-payments.bank.internal',
+    },
+    ...overrides,
+  });
+}
+
 /**
  * Resets the ID counters (call in beforeEach if needed).
  */
 export function resetCounters(): void {
   certIdCounter = 0;
   auditIdCounter = 0;
+  timelineIdCounter = 0;
 }

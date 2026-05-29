@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { AuditFilterParams } from '@certificado-digital/shared';
 import { useAuditLog } from '@/hooks/useAuditLog';
+import { useAuditExport } from '@/hooks/useAuditExport';
 import { AuditFilters, type AuditFilterState } from './components/AuditFilters';
 import { AuditTable } from './components/AuditTable';
 import styles from './AuditLogPage.module.css';
@@ -35,6 +36,7 @@ export default function AuditLogPage() {
   );
 
   const { data, isLoading } = useAuditLog(queryParams);
+  const { doExport, loading: exportLoading } = useAuditExport();
 
   const handleFilterChange = useCallback((update: Partial<AuditFilterState>) => {
     setFilters((prev) => ({ ...prev, ...update }));
@@ -60,8 +62,26 @@ export default function AuditLogPage() {
             Registro completo de todas as ações em certificados
           </div>
         </div>
-        <div className={styles.secTag}>
-          {data ? `${data.total} registros` : '…'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={styles.secTag}>
+            {data ? `${data.total} registros` : '…'}
+          </span>
+          <button
+            className={styles.pageBtn}
+            onClick={() => void doExport(queryParams, 'csv')}
+            disabled={exportLoading}
+            title="Export filtered audit log as CSV"
+          >
+            ↓ CSV
+          </button>
+          <button
+            className={styles.pageBtn}
+            onClick={() => void doExport(queryParams, 'json')}
+            disabled={exportLoading}
+            title="Export filtered audit log as JSON"
+          >
+            ↓ JSON
+          </button>
         </div>
       </div>
 

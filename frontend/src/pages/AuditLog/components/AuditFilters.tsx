@@ -22,6 +22,10 @@ const ACTION_OPTIONS: { value: AuditAction | ''; label: string }[] = [
   { value: 'UPDATE', label: 'UPDATE' },
   { value: 'DELETE', label: 'DELETE' },
   { value: 'REVOKE', label: 'REVOKE' },
+  { value: 'ISSUE', label: 'ISSUE' },
+  { value: 'RENEW', label: 'RENEW' },
+  { value: 'KEY_ROTATED', label: 'KEY_ROTATED' },
+  { value: 'NOTIFICATION_SENT', label: 'NOTIFICATION' },
 ];
 
 const RESULT_OPTIONS: { value: AuditResult | ''; label: string }[] = [
