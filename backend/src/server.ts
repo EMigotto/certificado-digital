@@ -8,6 +8,7 @@ import { alertRoutes } from './routes/alerts.js';
 import { schedulerRoutes } from './routes/scheduler.js';
 import { startScheduler, stopScheduler } from './scheduler/cronJob.js';
 import { policyRoutes } from './routes/policies.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -45,6 +46,9 @@ export async function buildServer() {
 
   // Expiration policy routes (CRUD + webhook test)
   await server.register(policyRoutes);
+
+  // Dashboard routes (snapshot, heatmap, critical alerts)
+  await server.register(dashboardRoutes);
 
   // Start expiration scheduler after server is ready
   server.addHook('onReady', async () => {
