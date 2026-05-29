@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
 import { auditRoutes } from './routes/audit.js';
+import { alertRoutes } from './routes/alerts.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -32,6 +33,9 @@ export async function buildServer() {
 
   // Audit log routes (read-only)
   await server.register(auditRoutes);
+
+  // Expiration alert routes
+  await server.register(alertRoutes);
 
   return server;
 }
