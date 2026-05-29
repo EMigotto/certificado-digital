@@ -25,6 +25,26 @@ const envSchema = z.object({
   ENCRYPTION_KEY: z
     .string()
     .default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+
+  // ── SMTP / Email notification settings ────────────────────────────────────
+
+  /** SMTP server hostname */
+  SMTP_HOST: z.string().default(''),
+
+  /** SMTP server port (587 for STARTTLS, 465 for TLS) */
+  SMTP_PORT: z.coerce.number().int().nonnegative().default(587),
+
+  /** SMTP authentication username */
+  SMTP_USER: z.string().default(''),
+
+  /** SMTP authentication password */
+  SMTP_PASSWORD: z.string().default(''),
+
+  /** Sender email address (envelope FROM) */
+  SMTP_FROM_ADDRESS: z.string().default('noreply@certificado-digital.local'),
+
+  /** Sender display name */
+  SMTP_FROM_NAME: z.string().default('Certificado Digital'),
 });
 
 export type Env = z.infer<typeof envSchema>;
