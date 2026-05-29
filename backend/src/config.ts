@@ -60,6 +60,14 @@ const envSchema = z.object({
    * Default: daily at 02:00 UTC.
    */
   EXPIRATION_SCHEDULER_CRON: z.string().default('0 2 * * *'),
+
+  // ── Webhook notification settings ─────────────────────────────────────────
+
+  /** Default timeout for webhook HTTP requests in milliseconds */
+  WEBHOOK_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+
+  /** Default maximum retries for webhook delivery */
+  WEBHOOK_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 });
 
 export type Env = z.infer<typeof envSchema>;
