@@ -5,6 +5,8 @@ import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
 import { auditRoutes } from './routes/audit.js';
 import { alertRoutes } from './routes/alerts.js';
+import { schedulerRoutes } from './routes/scheduler.js';
+import { startScheduler, stopScheduler } from './scheduler/cronJob.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -36,6 +38,19 @@ export async function buildServer() {
 
   // Expiration alert routes
   await server.register(alertRoutes);
+
+  // Scheduler routes (internal/admin)
+  await server.register(schedulerRoutes);
+
+  // Start expiration scheduler after server is ready
+  server.addHook('onReady', async () => {
+    startScheduler();
+  });
+
+  // Stop scheduler on server close
+  server.addHook('onClose', async () => {
+    stopScheduler();
+  });
 
   return server;
 }

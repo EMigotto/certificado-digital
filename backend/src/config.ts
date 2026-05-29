@@ -45,6 +45,21 @@ const envSchema = z.object({
 
   /** Sender display name */
   SMTP_FROM_NAME: z.string().default('Certificado Digital'),
+
+  /**
+   * Enable the expiration scheduler cron job.
+   * When false the scheduler will not start on server boot.
+   */
+  EXPIRATION_SCHEDULER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
+  /**
+   * Cron expression for the expiration check scheduler.
+   * Default: daily at 02:00 UTC.
+   */
+  EXPIRATION_SCHEDULER_CRON: z.string().default('0 2 * * *'),
 });
 
 export type Env = z.infer<typeof envSchema>;
