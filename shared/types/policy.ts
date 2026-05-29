@@ -116,6 +116,14 @@ export interface ExpirationWebhook {
   updatedAt: string;
 }
 
+// ─── Policy with Webhooks (API detail view) ────────────────────────────────
+
+/** Full policy record including its webhook configurations */
+export interface ExpirationPolicyDetail extends ExpirationPolicy {
+  /** Associated webhook endpoints */
+  webhooks: ExpirationWebhook[];
+}
+
 // ─── Mutation Payloads ─────────────────────────────────────────────────────
 
 /** Payload for creating a new expiration policy (system fields omitted) */
@@ -125,4 +133,48 @@ export type PolicyCreate = Omit<
 >;
 
 /** Payload for updating an existing expiration policy (all fields optional) */
-export type PolicyUpdate = Partial<Omit<PolicyCreate, 'createdBy'>>;
+export type PolicyUpdate = Partial<Omit<PolicyCreate, 'createdBy'>> & {
+  /** User performing the update */
+  updatedBy: string;
+};
+
+/** Payload for creating a webhook on a policy */
+export interface WebhookCreate {
+  url: string;
+  headers?: Record<string, string>;
+  retryStrategy?: string;
+  maxRetries?: number;
+  timeoutSeconds?: number;
+  isActive?: boolean;
+}
+
+/** Payload for updating a webhook */
+export interface WebhookUpdate {
+  url?: string;
+  headers?: Record<string, string>;
+  retryStrategy?: string | null;
+  maxRetries?: number;
+  timeoutSeconds?: number;
+  isActive?: boolean;
+}
+
+/** Create policy with optional inline webhooks. Nullable fields default to null. */
+export type PolicyCreateWithWebhooks = Omit<
+  PolicyCreate,
+  'description' | 'emailRecipientsAdditional' | 'emailSubjectPrefix'
+> & {
+  description?: string | null;
+  emailRecipientsAdditional?: string | null;
+  emailSubjectPrefix?: string | null;
+  webhooks?: WebhookCreate[];
+};
+
+/** Result of a webhook connectivity test */
+export interface WebhookTestResult {
+  webhookId: string;
+  success: boolean;
+  statusCode: number | null;
+  responseTime: number;
+  errorMessage: string | null;
+  testedAt: string;
+}

@@ -77,9 +77,14 @@ export type {
   ThresholdConfig,
   ThresholdsMap,
   ExpirationPolicy,
+  ExpirationPolicyDetail,
   ExpirationWebhook,
   PolicyCreate,
   PolicyUpdate,
+  PolicyCreateWithWebhooks,
+  WebhookCreate,
+  WebhookUpdate,
+  WebhookTestResult,
 } from './policy.js';
 
 // Dashboard types
