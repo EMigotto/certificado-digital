@@ -1,5 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useUiStore } from '@/store/uiStore';
+import { useDashboardSnapshot } from '@/hooks/useDashboardSnapshot';
+import { formatNumber } from '@/utils/formatters';
 import styles from './Sidebar.module.css';
 
 interface NavItem {
@@ -8,6 +10,8 @@ interface NavItem {
   icon: React.ReactNode;
   badge?: string;
   badgeWarn?: boolean;
+  /** Key for dynamic badge resolution from dashboard snapshot */
+  dynamicBadge?: 'expiring';
 }
 
 const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
@@ -45,7 +49,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
             <path d="M12 6v6l4 2" />
           </svg>
         ),
-        badge: '23',
+        dynamicBadge: 'expiring',
         badgeWarn: true,
       },
       {
@@ -115,12 +119,29 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const { data: snapshot, isLoading: isDashboardLoading } = useDashboardSnapshot();
 
   const isActive = (path: string) => {
     if (path === '/certificates') {
       return location.pathname.startsWith('/certificates');
     }
     return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  /** Resolves the badge text for a nav item, using live data when available */
+  const resolveBadge = (item: NavItem): string | null => {
+    if (item.dynamicBadge === 'expiring') {
+      if (snapshot) {
+        return formatNumber(snapshot.kpis.expiringLessThan30d);
+      }
+      return null;
+    }
+    return item.badge ?? null;
+  };
+
+  /** Whether a nav item's badge is in a loading state */
+  const isBadgeLoading = (item: NavItem): boolean => {
+    return item.dynamicBadge === 'expiring' && isDashboardLoading;
   };
 
   return (
@@ -141,25 +162,39 @@ export function Sidebar() {
         {NAV_SECTIONS.map((section) => (
           <div key={section.label}>
             <div className={styles.navLabel}>{section.label}</div>
-            {section.items.map((item) => (
-              <button
-                key={item.path}
-                className={`${styles.navItem} ${isActive(item.path) ? styles.active : ''}`}
-                onClick={() => navigate(item.path)}
-                aria-current={isActive(item.path) ? 'page' : undefined}
-                aria-label={item.label}
-              >
-                {item.icon}
-                {item.label}
-                {item.badge && (
-                  <span
-                    className={`${styles.navBadge} ${item.badgeWarn ? styles.navBadgeWarn : ''}`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            ))}
+            {section.items.map((item) => {
+              const badgeText = resolveBadge(item);
+              const loading = isBadgeLoading(item);
+
+              return (
+                <button
+                  key={item.path}
+                  className={`${styles.navItem} ${isActive(item.path) ? styles.active : ''}`}
+                  onClick={() => navigate(item.path)}
+                  aria-current={isActive(item.path) ? 'page' : undefined}
+                  aria-label={item.label}
+                >
+                  {item.icon}
+                  {item.label}
+                  {loading && (
+                    <span
+                      className={`${styles.navBadge} ${styles.navBadgeSkeleton}`}
+                      data-testid="badge-skeleton"
+                      aria-label="Carregando"
+                    >
+                      ···
+                    </span>
+                  )}
+                  {!loading && badgeText != null && (
+                    <span
+                      className={`${styles.navBadge} ${item.badgeWarn ? styles.navBadgeWarn : ''}`}
+                    >
+                      {badgeText}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         ))}
       </nav>

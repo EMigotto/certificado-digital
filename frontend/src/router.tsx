@@ -9,6 +9,7 @@ const CertificateDetailPage = lazy(() => import('@/pages/CertificateDetailPage')
 const UploadPage = lazy(() => import('@/pages/UploadPage'));
 const BulkImportPage = lazy(() => import('@/pages/BulkImportPage'));
 const AuditLogPage = lazy(() => import('@/pages/AuditLogPage'));
+const ExpiringPage = lazy(() => import('@/pages/ExpiringPage'));
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +38,10 @@ export const router = createBrowserRouter([
       {
         path: 'certificates/import',
         element: <BulkImportPage />,
+      },
+      {
+        path: 'expiring',
+        element: <ExpiringPage />,
       },
       {
         path: 'audit',
