@@ -3,12 +3,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http, HttpResponse } from 'msw';
+import { server } from '../mocks/server';
 import DashboardPage from '@/pages/DashboardPage';
 
 function renderWithProviders() {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: 0 },
+      queries: { retry: false, gcTime: 0, staleTime: 0 },
     },
   });
 
@@ -22,22 +24,33 @@ function renderWithProviders() {
 }
 
 describe('DashboardPage', () => {
-  it('renders the section title', () => {
+  // ─── Section Header ────────────────────────────────────────────────────────
+
+  it('renders the section title', async () => {
     renderWithProviders();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
     expect(screen.getByText(/Dashboard/)).toBeInTheDocument();
     expect(screen.getByText(/de expiração/)).toBeInTheDocument();
   });
 
-  it('renders the C3 tag', () => {
+  it('renders the C3 tag', async () => {
     renderWithProviders();
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
     expect(screen.getByText(/C3 · Monitoring & Alerts/)).toBeInTheDocument();
   });
 
-  it('shows loading skeletons initially', () => {
+  // ─── Loading State (AC 4.6: Loading skeleton) ─────────────────────────────
+
+  it('shows full dashboard skeleton while loading', () => {
     renderWithProviders();
-    expect(screen.getByTestId('kpi-loading')).toBeInTheDocument();
-    expect(screen.getByTestId('panels-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-skeleton')).toBeInTheDocument();
   });
+
+  // ─── KPI Cards ─────────────────────────────────────────────────────────────
 
   it('renders 4 KPI cards after loading', async () => {
     renderWithProviders();
@@ -80,18 +93,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('vs. ontem')).toBeInTheDocument();
   });
 
-  it('renders auto-refresh timestamp in header', async () => {
-    renderWithProviders();
-
-    await waitFor(() => {
-      expect(screen.getByText('2.847')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(/Auto-refresh 60s/)).toBeInTheDocument();
-    expect(screen.getByText(/Última:/)).toBeInTheDocument();
-  });
-
-  // ─── Heatmap panel tests (AC 4.4) ─────────────────────────────────────
+  // ─── Heatmap panel tests (AC 4.4) ─────────────────────────────────────────
 
   it('renders the heatmap panel title', async () => {
     renderWithProviders();
@@ -145,7 +147,7 @@ describe('DashboardPage', () => {
     });
   });
 
-  // ─── Critical alerts panel tests (AC 4.5) ─────────────────────────────
+  // ─── Critical alerts panel tests (AC 4.5) ─────────────────────────────────
 
   it('renders the critical alerts panel', async () => {
     renderWithProviders();
@@ -182,5 +184,124 @@ describe('DashboardPage', () => {
       expect(screen.getByText(/prd · time-pagamentos/)).toBeInTheDocument();
     });
     expect(screen.getByText(/prd · time-data/)).toBeInTheDocument();
+  });
+
+  // ─── Auto-refresh & Last Updated Banner (AC 4.6) ──────────────────────────
+
+  it('shows the last-updated banner with auto-refresh label', async () => {
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('last-updated-banner')).toBeInTheDocument();
+    });
+
+    // AC 4.6: Auto-refresh label
+    expect(screen.getByText('Auto-refresh 60s')).toBeInTheDocument();
+  });
+
+  it('shows last-updated timestamp after data loads', async () => {
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('last-updated-time')).toBeInTheDocument();
+    });
+
+    // Timestamp format: "Última: HH:MM:SS"
+    expect(screen.getByText(/Última:/)).toBeInTheDocument();
+  });
+
+  // ─── Error Handling (AC 4.6) ───────────────────────────────────────────────
+
+  it('shows error banner when API fails', async () => {
+    // Use 422 (not retried by axios interceptor which only retries 5xx/network)
+    server.use(
+      http.get('/api/dashboard/snapshot', () => {
+        return HttpResponse.json(
+          { statusCode: 422, message: 'Dashboard data unavailable' },
+          { status: 422 },
+        );
+      }),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    });
+
+    // AC 4.6: Error banner on API failure without crash
+    expect(screen.getByText('Failed to load dashboard data')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-retry-btn')).toBeInTheDocument();
+  });
+
+  it('allows retry on error', async () => {
+    const user = userEvent.setup();
+    let callCount = 0;
+
+    server.use(
+      http.get('/api/dashboard/snapshot', () => {
+        callCount++;
+        if (callCount <= 1) {
+          return HttpResponse.json(
+            { statusCode: 422, message: 'Temporary failure' },
+            { status: 422 },
+          );
+        }
+        return HttpResponse.json({
+          kpis: {
+            totalManaged: 100,
+            validCount: 95,
+            expiringLessThan30d: 3,
+            expiredOrRevoked: 2,
+            trends: {
+              totalManaged: { direction: 'up', delta: 5 },
+              validCount: { direction: 'up', delta: 3 },
+              expiringLessThan30d: { direction: 'stable', delta: 0 },
+              expiredOrRevoked: { direction: 'stable', delta: 0 },
+            },
+          },
+          heatmap: {},
+          alerts: [],
+          generatedAt: new Date().toISOString(),
+        });
+      }),
+    );
+
+    renderWithProviders();
+
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    });
+
+    // Click retry
+    await user.click(screen.getByTestId('dashboard-retry-btn'));
+
+    // Should eventually render the dashboard
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+  });
+
+  it('page remains interactive during error state', async () => {
+    // AC 4.6: Page remains interactive during refresh
+    server.use(
+      http.get('/api/dashboard/snapshot', () => {
+        return HttpResponse.json(
+          { statusCode: 422, message: 'Server error' },
+          { status: 422 },
+        );
+      }),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    });
+
+    // The retry button should be enabled (page is interactive)
+    const retryBtn = screen.getByTestId('dashboard-retry-btn');
+    expect(retryBtn).not.toBeDisabled();
   });
 });

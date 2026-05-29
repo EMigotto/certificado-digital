@@ -1,28 +1,51 @@
+/**
+ * DashboardPage — Expiration monitoring dashboard (C3).
+ *
+ * Displays KPI cards, 90-day expiration heatmap, and critical alerts.
+ * Features:
+ *   - 60-second auto-refresh via useDashboardSnapshot and useCriticalAlerts
+ *   - Proper loading skeleton on initial load (DashboardSkeleton)
+ *   - Inline error banner with retry on API failure (DashboardError)
+ *   - "Last updated" timestamp with background refresh spinner (LastUpdatedBanner)
+ *
+ * AC 4.6: Dashboard auto-refreshes every 60 seconds without page reload.
+ * AC 4.6: Shows "Last updated: HH:MM:SS" timestamp.
+ * AC 4.6: Loading spinner during slow API calls.
+ * AC 4.6: Error banner on API failure without crash.
+ * AC 4.6: Page remains interactive during refresh.
+ */
+
 import { useDashboardSnapshot } from '@/hooks/useDashboardSnapshot';
+import { useCriticalAlerts } from '@/hooks/useCriticalAlerts';
 import { KpiGrid } from './components/KpiGrid';
 import { HeatmapPanel } from './components/HeatmapPanel';
 import { CriticalAlertsPanel } from './components/CriticalAlertsPanel';
-import { formatDateTime } from '@/utils/formatters';
+import { LastUpdatedBanner } from './components/LastUpdatedBanner';
+import { DashboardSkeleton } from './components/DashboardSkeleton';
+import { DashboardError } from './components/DashboardError';
 import styles from './DashboardPage.module.css';
 
-/**
- * Main Dashboard page component.
- *
- * Renders the section header ("01 · Dashboard de expiração"), KPI grid,
- * 90-day expiration heatmap, and critical alerts panel.
- * Uses useDashboardSnapshot() hook for data fetching via TanStack Query.
- */
 export default function DashboardPage() {
-  const { data: snapshot, isLoading, isError, refetch } = useDashboardSnapshot();
+  const snapshot = useDashboardSnapshot();
+  const alerts = useCriticalAlerts();
 
-  // Format the "last refresh" timestamp
-  const lastRefresh = snapshot
-    ? formatDateTime(snapshot.generatedAt)
-    : '—';
+  // Initial load → show full-page skeleton
+  if (snapshot.isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  // Combined fetching state for the banner spinner
+  const isFetching = snapshot.isFetching || alerts.isFetching;
+
+  // Handle retry for both queries
+  const handleRetry = () => {
+    void snapshot.refetch();
+    void alerts.refetch();
+  };
 
   return (
-    <section className={styles.dashboardSection} id="dashboard">
-      {/* Section header — matches prototype exactly */}
+    <section className={styles.dashboardSection} id="dashboard" data-testid="dashboard-page">
+      {/* Section header — matches prototype */}
       <div className={styles.secHead}>
         <div>
           <div className={styles.secTitle}>
@@ -33,46 +56,44 @@ export default function DashboardPage() {
             <span className={styles.secTagCap}>C3 · Monitoring &amp; Alerts</span>
           </div>
         </div>
-        <div className={styles.secTag}>
-          Auto-refresh 60s · Última: {lastRefresh}
-        </div>
+        <LastUpdatedBanner
+          lastUpdated={snapshot.lastUpdated}
+          isFetching={isFetching}
+        />
       </div>
 
-      {/* KPI Grid — loading skeleton */}
-      {isLoading && (
-        <>
-          <div className={styles.kpiGrid} data-testid="kpi-loading">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className={styles.kpiSkeleton} />
-            ))}
-          </div>
-          <div className={styles.grid2} data-testid="panels-loading">
-            <div className={styles.skeletonPanel} />
-            <div className={styles.skeletonPanel} />
-          </div>
-        </>
+      {/* Error banner (non-blocking — page stays interactive) */}
+      {snapshot.isError && (
+        <DashboardError
+          error={snapshot.error}
+          onRetry={handleRetry}
+          isRetrying={isFetching}
+        />
       )}
 
-      {/* Error state */}
-      {isError && (
-        <div className={styles.errorState} data-testid="kpi-error">
-          <p>Erro ao carregar métricas do dashboard.</p>
-          <button className={styles.retryButton} onClick={() => refetch()}>
-            Tentar novamente
-          </button>
-        </div>
+      {/* Alert-specific error (only if snapshot succeeded but alerts failed) */}
+      {!snapshot.isError && alerts.isError && (
+        <DashboardError
+          error={alerts.error}
+          onRetry={() => void alerts.refetch()}
+          isRetrying={alerts.isFetching}
+        />
       )}
 
-      {/* Loaded state: KPI cards + Heatmap + Critical alerts */}
-      {snapshot && (
+      {/* Dashboard content — render with whatever data is available */}
+      {snapshot.data && (
         <>
-          <KpiGrid snapshot={snapshot} />
+          <KpiGrid snapshot={snapshot.data} />
 
           <div className={styles.grid2}>
-            <HeatmapPanel heatmapData={snapshot.heatmap} />
+            <HeatmapPanel heatmapData={snapshot.data.heatmap} />
             <CriticalAlertsPanel
-              alerts={snapshot.alerts}
-              totalCount={snapshot.alerts.length}
+              alerts={alerts.data.length > 0 ? alerts.data : snapshot.data.alerts}
+              totalCount={
+                alerts.data.length > 0
+                  ? alerts.data.length
+                  : snapshot.data.alerts.length
+              }
             />
           </div>
         </>

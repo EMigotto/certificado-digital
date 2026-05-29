@@ -1,0 +1,62 @@
+/* DashboardError — inline error banner for API failures */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: rgba(248, 113, 113, 0.06);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 10px;
+  margin-bottom: 24px;
+}
+
+.iconWrap {
+  flex-shrink: 0;
+  color: var(--crit);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--crit);
+  margin-bottom: 4px;
+}
+
+.message {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.retryBtn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--crit);
+}
+
+.retryBtn:hover {
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.retryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

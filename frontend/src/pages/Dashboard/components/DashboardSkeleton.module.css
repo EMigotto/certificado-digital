@@ -1,0 +1,163 @@
+/* DashboardSkeleton — loading placeholders for the dashboard */
+
+/* === KPI skeleton grid === */
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpiCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpiCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-2);
+}
+
+.kpiLabel {
+  height: 10px;
+  width: 60%;
+  margin-bottom: 12px;
+}
+
+.kpiValue {
+  height: 42px;
+  width: 40%;
+  margin-bottom: 10px;
+}
+
+.kpiMeta {
+  height: 12px;
+  width: 70%;
+}
+
+/* === Panels row (heatmap + alerts) === */
+.panelGrid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  height: 15px;
+  width: 50%;
+}
+
+.panelSub {
+  height: 11px;
+  width: 20%;
+}
+
+/* === Heatmap skeleton === */
+.heatmapGrid {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  gap: 3px;
+}
+
+.heatCell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+}
+
+.heatmapAxis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.axisLabel {
+  height: 10px;
+  width: 30px;
+}
+
+/* === Alert list skeleton === */
+.alertList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.alertItem {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 6px;
+  border-left: 3px solid var(--border-2);
+}
+
+.alertContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.alertCn {
+  height: 12px;
+  width: 80%;
+  margin-bottom: 6px;
+}
+
+.alertMeta {
+  height: 11px;
+  width: 60%;
+}
+
+.alertDays {
+  height: 14px;
+  width: 24px;
+  align-self: center;
+}
+
+/* === Section header skeleton === */
+.secHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.secTitle {
+  height: 36px;
+  width: 320px;
+}
+
+.secTag {
+  height: 11px;
+  width: 180px;
+  margin-top: 8px;
+}
+
+.secRefresh {
+  height: 11px;
+  width: 160px;
+}
