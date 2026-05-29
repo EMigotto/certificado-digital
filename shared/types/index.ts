@@ -60,3 +60,35 @@ export type {
   ApiSuccess,
   BulkOperationResult,
 } from './api.js';
+
+// Expiration alert types
+export type {
+  AlertStatus,
+  NotificationChannel,
+  NotificationStatus,
+  ExpirationAlert,
+  NotificationRecord,
+  ExpirationAlertCreate,
+  ExpirationAlertListParams,
+} from './alert.js';
+
+// Expiration policy types
+export type {
+  ThresholdConfig,
+  ThresholdsMap,
+  ExpirationPolicy,
+  ExpirationWebhook,
+  PolicyCreate,
+  PolicyUpdate,
+} from './policy.js';
+
+// Dashboard types
+export type {
+  TrendDirection,
+  KpiTrend,
+  KpiData,
+  HeatmapData,
+  AlertSeverity,
+  CriticalAlert,
+  DashboardSnapshot,
+} from './dashboard.js';

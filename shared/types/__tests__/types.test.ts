@@ -35,6 +35,29 @@ import type {
   CertificateTimeline,
   RenewalOptions,
   RevocationReasonOption,
+  // Expiration alert types
+  AlertStatus,
+  NotificationChannel,
+  NotificationStatus,
+  ExpirationAlert,
+  NotificationRecord,
+  ExpirationAlertCreate,
+  ExpirationAlertListParams,
+  // Expiration policy types
+  ThresholdConfig,
+  ThresholdsMap,
+  ExpirationPolicy,
+  ExpirationWebhook,
+  PolicyCreate,
+  PolicyUpdate,
+  // Dashboard types
+  TrendDirection,
+  KpiTrend,
+  KpiData,
+  HeatmapData,
+  AlertSeverity,
+  CriticalAlert,
+  DashboardSnapshot,
 } from '../index.js';
 
 /**
@@ -333,6 +356,238 @@ describe('shared types', () => {
       expectTypeOf<BulkOperationResult>().toHaveProperty('succeeded');
       expectTypeOf<BulkOperationResult>().toHaveProperty('failed');
       expectTypeOf<BulkOperationResult>().toHaveProperty('errors');
+    });
+  });
+
+  // ─── Expiration Alert Types ────────────────────────────────────────────────
+
+  describe('expiration alert types', () => {
+    it('AlertStatus should include all lifecycle values', () => {
+      expectTypeOf<'PENDING'>().toMatchTypeOf<AlertStatus>();
+      expectTypeOf<'NOTIFIED'>().toMatchTypeOf<AlertStatus>();
+      expectTypeOf<'FAILED'>().toMatchTypeOf<AlertStatus>();
+      expectTypeOf<'ACKNOWLEDGED'>().toMatchTypeOf<AlertStatus>();
+    });
+
+    it('NotificationChannel should be email or webhook', () => {
+      expectTypeOf<'email'>().toMatchTypeOf<NotificationChannel>();
+      expectTypeOf<'webhook'>().toMatchTypeOf<NotificationChannel>();
+    });
+
+    it('NotificationStatus should include all delivery outcomes', () => {
+      expectTypeOf<'SUCCESS'>().toMatchTypeOf<NotificationStatus>();
+      expectTypeOf<'FAILED'>().toMatchTypeOf<NotificationStatus>();
+      expectTypeOf<'SKIPPED'>().toMatchTypeOf<NotificationStatus>();
+    });
+
+    it('ExpirationAlert should have expected shape', () => {
+      expectTypeOf<ExpirationAlert>().toHaveProperty('id');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('certificateId');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('threshold');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('triggeredAt');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('status');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('certificateCn');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('certificateSans');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('daysUntilExpiryAtAlert');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('caName');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('owner');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('zone');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('environment');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('acknowledgedAt');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('acknowledgedBy');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('createdAt');
+      expectTypeOf<ExpirationAlert>().toHaveProperty('updatedAt');
+    });
+
+    it('ExpirationAlert.status should be AlertStatus', () => {
+      expectTypeOf<ExpirationAlert['status']>().toEqualTypeOf<AlertStatus>();
+    });
+
+    it('NotificationRecord should have expected shape', () => {
+      expectTypeOf<NotificationRecord>().toHaveProperty('id');
+      expectTypeOf<NotificationRecord>().toHaveProperty('alertId');
+      expectTypeOf<NotificationRecord>().toHaveProperty('channel');
+      expectTypeOf<NotificationRecord>().toHaveProperty('sentAt');
+      expectTypeOf<NotificationRecord>().toHaveProperty('status');
+      expectTypeOf<NotificationRecord>().toHaveProperty('errorMessage');
+      expectTypeOf<NotificationRecord>().toHaveProperty('webhookId');
+      expectTypeOf<NotificationRecord>().toHaveProperty('attemptNumber');
+    });
+
+    it('NotificationRecord.channel should be NotificationChannel', () => {
+      expectTypeOf<NotificationRecord['channel']>().toEqualTypeOf<NotificationChannel>();
+    });
+
+    it('NotificationRecord.status should be NotificationStatus', () => {
+      expectTypeOf<NotificationRecord['status']>().toEqualTypeOf<NotificationStatus>();
+    });
+
+    it('ExpirationAlertCreate should omit system fields', () => {
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('id');
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('status');
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('acknowledgedAt');
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('acknowledgedBy');
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('createdAt');
+      expectTypeOf<ExpirationAlertCreate>().not.toHaveProperty('updatedAt');
+      expectTypeOf<ExpirationAlertCreate>().toHaveProperty('certificateId');
+      expectTypeOf<ExpirationAlertCreate>().toHaveProperty('threshold');
+    });
+
+    it('ExpirationAlertListParams should have optional filter fields', () => {
+      expectTypeOf<ExpirationAlertListParams>().toHaveProperty('page');
+      expectTypeOf<ExpirationAlertListParams>().toHaveProperty('pageSize');
+      expectTypeOf<ExpirationAlertListParams>().toHaveProperty('status');
+      expectTypeOf<ExpirationAlertListParams>().toHaveProperty('threshold');
+      expectTypeOf<ExpirationAlertListParams>().toHaveProperty('certificateId');
+    });
+  });
+
+  // ─── Expiration Policy Types ───────────────────────────────────────────────
+
+  describe('expiration policy types', () => {
+    it('ThresholdConfig should have enabled and channels', () => {
+      expectTypeOf<ThresholdConfig>().toHaveProperty('enabled');
+      expectTypeOf<ThresholdConfig>().toHaveProperty('channels');
+    });
+
+    it('ThresholdConfig.channels should be NotificationChannel[]', () => {
+      expectTypeOf<ThresholdConfig['channels']>().toEqualTypeOf<NotificationChannel[]>();
+    });
+
+    it('ThresholdsMap should have all four threshold tiers', () => {
+      expectTypeOf<ThresholdsMap>().toHaveProperty('days_90');
+      expectTypeOf<ThresholdsMap>().toHaveProperty('days_30');
+      expectTypeOf<ThresholdsMap>().toHaveProperty('days_7');
+      expectTypeOf<ThresholdsMap>().toHaveProperty('days_1');
+    });
+
+    it('ThresholdsMap tiers should be ThresholdConfig', () => {
+      expectTypeOf<ThresholdsMap['days_90']>().toEqualTypeOf<ThresholdConfig>();
+      expectTypeOf<ThresholdsMap['days_30']>().toEqualTypeOf<ThresholdConfig>();
+      expectTypeOf<ThresholdsMap['days_7']>().toEqualTypeOf<ThresholdConfig>();
+      expectTypeOf<ThresholdsMap['days_1']>().toEqualTypeOf<ThresholdConfig>();
+    });
+
+    it('ExpirationPolicy should have expected shape', () => {
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('id');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('name');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('description');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('zoneId');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('isDefault');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('thresholds');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('emailEnabled');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('emailRecipientsAdditional');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('emailSubjectPrefix');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('createdBy');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('updatedBy');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('createdAt');
+      expectTypeOf<ExpirationPolicy>().toHaveProperty('updatedAt');
+    });
+
+    it('ExpirationPolicy.thresholds should be ThresholdsMap', () => {
+      expectTypeOf<ExpirationPolicy['thresholds']>().toEqualTypeOf<ThresholdsMap>();
+    });
+
+    it('ExpirationWebhook should have expected shape', () => {
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('id');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('policyId');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('url');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('headers');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('retryStrategy');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('maxRetries');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('timeoutSeconds');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('isActive');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('testResult');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('lastTestAt');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('createdAt');
+      expectTypeOf<ExpirationWebhook>().toHaveProperty('updatedAt');
+    });
+
+    it('PolicyCreate should omit system fields', () => {
+      expectTypeOf<PolicyCreate>().not.toHaveProperty('id');
+      expectTypeOf<PolicyCreate>().not.toHaveProperty('updatedBy');
+      expectTypeOf<PolicyCreate>().not.toHaveProperty('createdAt');
+      expectTypeOf<PolicyCreate>().not.toHaveProperty('updatedAt');
+      expectTypeOf<PolicyCreate>().toHaveProperty('name');
+      expectTypeOf<PolicyCreate>().toHaveProperty('createdBy');
+    });
+
+    it('PolicyUpdate should have all optional fields and omit createdBy', () => {
+      expectTypeOf<PolicyUpdate>().not.toHaveProperty('createdBy');
+      // PolicyUpdate fields are optional — verify that undefined is assignable
+      expectTypeOf<undefined>().toMatchTypeOf<PolicyUpdate['name']>();
+      expectTypeOf<undefined>().toMatchTypeOf<PolicyUpdate['thresholds']>();
+    });
+  });
+
+  // ─── Dashboard Types ──────────────────────────────────────────────────────
+
+  describe('dashboard types', () => {
+    it('TrendDirection should be up, down, or stable', () => {
+      expectTypeOf<'up'>().toMatchTypeOf<TrendDirection>();
+      expectTypeOf<'down'>().toMatchTypeOf<TrendDirection>();
+      expectTypeOf<'stable'>().toMatchTypeOf<TrendDirection>();
+    });
+
+    it('KpiTrend should have direction and delta', () => {
+      expectTypeOf<KpiTrend>().toHaveProperty('direction');
+      expectTypeOf<KpiTrend>().toHaveProperty('delta');
+    });
+
+    it('KpiData should have expected metrics and trends', () => {
+      expectTypeOf<KpiData>().toHaveProperty('totalManaged');
+      expectTypeOf<KpiData>().toHaveProperty('validCount');
+      expectTypeOf<KpiData>().toHaveProperty('expiringLessThan30d');
+      expectTypeOf<KpiData>().toHaveProperty('expiredOrRevoked');
+      expectTypeOf<KpiData>().toHaveProperty('trends');
+    });
+
+    it('KpiData.trends should have all four metric trends', () => {
+      expectTypeOf<KpiData['trends']>().toHaveProperty('totalManaged');
+      expectTypeOf<KpiData['trends']>().toHaveProperty('validCount');
+      expectTypeOf<KpiData['trends']>().toHaveProperty('expiringLessThan30d');
+      expectTypeOf<KpiData['trends']>().toHaveProperty('expiredOrRevoked');
+    });
+
+    it('HeatmapData should be Record<number, number>', () => {
+      expectTypeOf<HeatmapData>().toEqualTypeOf<Record<number, number>>();
+    });
+
+    it('AlertSeverity should include all levels', () => {
+      expectTypeOf<'critical'>().toMatchTypeOf<AlertSeverity>();
+      expectTypeOf<'warning'>().toMatchTypeOf<AlertSeverity>();
+      expectTypeOf<'info'>().toMatchTypeOf<AlertSeverity>();
+    });
+
+    it('CriticalAlert should have expected display fields', () => {
+      expectTypeOf<CriticalAlert>().toHaveProperty('cn');
+      expectTypeOf<CriticalAlert>().toHaveProperty('owner');
+      expectTypeOf<CriticalAlert>().toHaveProperty('env');
+      expectTypeOf<CriticalAlert>().toHaveProperty('daysLeft');
+      expectTypeOf<CriticalAlert>().toHaveProperty('severity');
+    });
+
+    it('CriticalAlert.severity should be AlertSeverity', () => {
+      expectTypeOf<CriticalAlert['severity']>().toEqualTypeOf<AlertSeverity>();
+    });
+
+    it('DashboardSnapshot should combine all dashboard data', () => {
+      expectTypeOf<DashboardSnapshot>().toHaveProperty('kpis');
+      expectTypeOf<DashboardSnapshot>().toHaveProperty('heatmap');
+      expectTypeOf<DashboardSnapshot>().toHaveProperty('alerts');
+      expectTypeOf<DashboardSnapshot>().toHaveProperty('generatedAt');
+    });
+
+    it('DashboardSnapshot.kpis should be KpiData', () => {
+      expectTypeOf<DashboardSnapshot['kpis']>().toEqualTypeOf<KpiData>();
+    });
+
+    it('DashboardSnapshot.heatmap should be HeatmapData', () => {
+      expectTypeOf<DashboardSnapshot['heatmap']>().toEqualTypeOf<HeatmapData>();
+    });
+
+    it('DashboardSnapshot.alerts should be CriticalAlert[]', () => {
+      expectTypeOf<DashboardSnapshot['alerts']>().toEqualTypeOf<CriticalAlert[]>();
     });
   });
 });
