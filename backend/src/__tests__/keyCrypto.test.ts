@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import forge from 'node-forge';
 import {
   encryptPrivateKey,
@@ -30,12 +31,42 @@ const TEST_KEK = 'test-master-secret-that-is-at-least-32-characters-long';
 const ANOTHER_KEK = 'another-completely-different-secret-32chars-plus';
 
 /**
- * Generate a fresh RSA private key PEM for testing.
+ * Generate a fresh RSA private key PEM (PKCS#1 via node-forge) for testing.
  * Uses a small key size (2048) for acceptable test speed.
  */
 function generateTestKeyPem(bits = 2048): string {
   const keypair = forge.pki.rsa.generateKeyPair({ bits, e: 0x10001 });
   return forge.pki.privateKeyToPem(keypair.privateKey);
+}
+
+/** Generate a PKCS#8 RSA PEM via Node.js crypto. */
+function generatePkcs8RsaPem(modulusLength = 2048): string {
+  const { privateKey } = generateKeyPairSync('rsa', {
+    modulusLength,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  return privateKey;
+}
+
+/** Generate an ECDSA P-256 PKCS#8 PEM. */
+function generateEcP256Pem(): string {
+  const { privateKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  return privateKey;
+}
+
+/** Generate an ECDSA P-384 PKCS#8 PEM. */
+function generateEcP384Pem(): string {
+  const { privateKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-384',
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  return privateKey;
 }
 
 // Pre-generate a key pair for tests that don't need uniqueness.
@@ -122,11 +153,55 @@ describe('encryptPrivateKey / decryptPrivateKey', () => {
     expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
   });
 
+  it('tampered IV → KeyDecryptionError', () => {
+    const pem = getTestPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+
+    const ivBuf = Buffer.from(envelope.iv, 'base64');
+    ivBuf[0] ^= 0xff;
+    const tampered: EncryptedKeyEnvelope = {
+      ...envelope,
+      iv: ivBuf.toString('base64'),
+    };
+
+    expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
+  });
+
+  it('tampered salt → KeyDecryptionError (derives different key)', () => {
+    const pem = getTestPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+
+    const saltBuf = Buffer.from(envelope.salt, 'base64');
+    saltBuf[0] ^= 0xff;
+    const tampered: EncryptedKeyEnvelope = {
+      ...envelope,
+      salt: saltBuf.toString('base64'),
+    };
+
+    expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
+  });
+
   it('wrong KEK → KeyDecryptionError', () => {
     const pem = getTestPem();
     const envelope = encryptPrivateKey(pem, TEST_KEK);
 
     expect(() => decryptPrivateKey(envelope, ANOTHER_KEK)).toThrow(KeyDecryptionError);
+  });
+
+  it('round-trip preserves PKCS#8 RSA PEM exactly', () => {
+    const pem = generatePkcs8RsaPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+    const decrypted = decryptPrivateKey(envelope, TEST_KEK);
+
+    expect(decrypted).toBe(pem);
+  });
+
+  it('round-trip preserves EC P-256 PEM exactly', () => {
+    const pem = generateEcP256Pem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+    const decrypted = decryptPrivateKey(envelope, TEST_KEK);
+
+    expect(decrypted).toBe(pem);
   });
 
   it('KeyDecryptionError has expected code property', () => {
@@ -226,6 +301,18 @@ describe('computeKeyFingerprint', () => {
 
     expect(fp1).not.toBe(fp2);
   });
+
+  it('works for PKCS#8 RSA PEM', () => {
+    const pem = generatePkcs8RsaPem();
+    const fp = computeKeyFingerprint(pem);
+    expect(fp).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('works for EC P-256 PEM', () => {
+    const pem = generateEcP256Pem();
+    const fp = computeKeyFingerprint(pem);
+    expect(fp).toMatch(/^[0-9a-f]{64}$/);
+  });
 });
 
 // ─── Metadata ───────────────────────────────────────────────────────────────
@@ -246,6 +333,30 @@ describe('parsePrivateKeyMetadata', () => {
 
     expect(meta.algorithm).toBe('RSA');
     expect(meta.keySize).toBe(4096);
+  });
+
+  it('extracts PKCS#8 RSA-2048 metadata', () => {
+    const pem = generatePkcs8RsaPem(2048);
+    const meta = parsePrivateKeyMetadata(pem);
+
+    expect(meta.algorithm).toBe('RSA');
+    expect(meta.keySize).toBe(2048);
+  });
+
+  it('extracts EC P-256 metadata', () => {
+    const pem = generateEcP256Pem();
+    const meta = parsePrivateKeyMetadata(pem);
+
+    expect(meta.algorithm).toBe('EC');
+    expect(meta.keySize).toBe(256);
+  });
+
+  it('extracts EC P-384 metadata', () => {
+    const pem = generateEcP384Pem();
+    const meta = parsePrivateKeyMetadata(pem);
+
+    expect(meta.algorithm).toBe('EC');
+    expect(meta.keySize).toBe(384);
   });
 });
 
@@ -310,6 +421,18 @@ describe('validatePrivateKeyPem', () => {
     const pem = getTestPem();
     const paddedPem = `\n  ${pem}  \n`;
     const result = validatePrivateKeyPem(paddedPem);
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts a valid PKCS#8 RSA PEM', () => {
+    const pem = generatePkcs8RsaPem();
+    const result = validatePrivateKeyPem(pem);
+    expect(result.valid).toBe(true);
+  });
+
+  it('accepts a valid EC P-256 PEM', () => {
+    const pem = generateEcP256Pem();
+    const result = validatePrivateKeyPem(pem);
     expect(result.valid).toBe(true);
   });
 });

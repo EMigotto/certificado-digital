@@ -11,7 +11,6 @@
  */
 
 import crypto from 'node:crypto';
-import forge from 'node-forge';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -169,41 +168,64 @@ export function decryptPrivateKey(encrypted: EncryptedKeyEnvelope, kek: string):
  * The fingerprint is computed over the DER encoding of the SubjectPublicKeyInfo
  * structure, producing a lowercase hex string identical to OpenSSL's output.
  *
+ * Supports RSA (PKCS#1 and PKCS#8) and EC (SEC1 and PKCS#8) private keys.
+ *
  * @param privateKeyPem - PEM-encoded private key (RSA or EC).
  * @returns Lowercase hex SHA-256 fingerprint.
  */
 export function computeKeyFingerprint(privateKeyPem: string): string {
-  const privateKey = forge.pki.privateKeyFromPem(privateKeyPem);
-  const publicKey = forge.pki.setRsaPublicKey(
-    (privateKey as forge.pki.rsa.PrivateKey).n,
-    (privateKey as forge.pki.rsa.PrivateKey).e,
-  );
+  // Use Node.js crypto for broad key-type support (RSA, EC, Ed25519, etc.)
+  const privKey = crypto.createPrivateKey(privateKeyPem);
+  const pubKey = crypto.createPublicKey(privKey);
 
-  const publicKeyAsn1 = forge.pki.publicKeyToAsn1(publicKey);
-  const publicKeyDer = forge.asn1.toDer(publicKeyAsn1).getBytes();
+  // Export as DER-encoded SubjectPublicKeyInfo
+  const spkiDer = pubKey.export({ type: 'spki', format: 'der' });
 
-  const hash = crypto.createHash('sha256').update(publicKeyDer, 'binary').digest('hex');
-  return hash;
+  return crypto.createHash('sha256').update(spkiDer).digest('hex');
 }
 
 /**
  * Parse a private key PEM and extract algorithm metadata.
  *
+ * Supports RSA (PKCS#1 & PKCS#8) and EC (SEC1 & PKCS#8) private keys.
+ * Uses Node.js crypto for broad key-type support.
+ *
  * @param pem - PEM-encoded private key.
  * @returns Metadata with algorithm name and key size.
  */
 export function parsePrivateKeyMetadata(pem: string): PrivateKeyMetadata {
-  const privateKey = forge.pki.privateKeyFromPem(pem);
+  const keyObj = crypto.createPrivateKey(pem);
+  const asymmetricKeyType = keyObj.asymmetricKeyType;
 
-  // node-forge currently only supports RSA, so we detect based on key properties
-  const rsaKey = privateKey as forge.pki.rsa.PrivateKey;
-  if (rsaKey.n !== undefined && rsaKey.e !== undefined) {
-    const keySize = rsaKey.n.bitLength();
+  if (asymmetricKeyType === 'rsa' || asymmetricKeyType === 'rsa-pss') {
+    // Export as JWK to get modulus length
+    const jwk = keyObj.export({ format: 'jwk' });
+    const modulusBytes = Buffer.from(jwk.n as string, 'base64url');
+    const keySize = modulusBytes.length * 8;
     return { algorithm: 'RSA', keySize };
   }
 
+  if (asymmetricKeyType === 'ec') {
+    const jwk = keyObj.export({ format: 'jwk' });
+    const curveMap: Record<string, number> = {
+      'P-256': 256,
+      'P-384': 384,
+      'P-521': 521,
+    };
+    const keySize = curveMap[jwk.crv as string] ?? 0;
+    return { algorithm: 'EC', keySize };
+  }
+
+  if (asymmetricKeyType === 'ed25519') {
+    return { algorithm: 'Ed25519', keySize: 256 };
+  }
+
+  if (asymmetricKeyType === 'ed448') {
+    return { algorithm: 'Ed448', keySize: 448 };
+  }
+
   // Fallback for unknown / future key types
-  return { algorithm: 'UNKNOWN', keySize: 0 };
+  return { algorithm: asymmetricKeyType ?? 'UNKNOWN', keySize: 0 };
 }
 
 /**
@@ -211,7 +233,9 @@ export function parsePrivateKeyMetadata(pem: string): PrivateKeyMetadata {
  *
  * Checks:
  * 1. PEM envelope is present and correctly formatted.
- * 2. The content can be parsed as a private key by node-forge.
+ * 2. Node.js `crypto.createPrivateKey` can parse it without error.
+ *
+ * Supports RSA (PKCS#1), PKCS#8 (generic), EC (SEC1), and encrypted PEM.
  *
  * @param pem - The string to validate.
  * @returns A {@link PemValidationResult} indicating success or the error message.
@@ -223,17 +247,19 @@ export function validatePrivateKeyPem(pem: string): PemValidationResult {
 
   const trimmed = pem.trim();
 
-  // Check for standard PEM envelope markers
-  const hasRsaHeader = trimmed.startsWith('-----BEGIN RSA PRIVATE KEY-----');
-  const hasGenericHeader = trimmed.startsWith('-----BEGIN PRIVATE KEY-----');
-  const hasEncryptedHeader = trimmed.startsWith('-----BEGIN ENCRYPTED PRIVATE KEY-----');
+  // Check for any recognised private key PEM header (using includes for flexibility)
+  const hasPrivateKeyHeader =
+    trimmed.includes('-----BEGIN PRIVATE KEY-----') ||
+    trimmed.includes('-----BEGIN RSA PRIVATE KEY-----') ||
+    trimmed.includes('-----BEGIN EC PRIVATE KEY-----') ||
+    trimmed.includes('-----BEGIN ENCRYPTED PRIVATE KEY-----');
 
-  if (!hasRsaHeader && !hasGenericHeader && !hasEncryptedHeader) {
+  if (!hasPrivateKeyHeader) {
     return { valid: false, error: 'Missing or invalid PEM header (expected a PRIVATE KEY block)' };
   }
 
   try {
-    forge.pki.privateKeyFromPem(trimmed);
+    crypto.createPrivateKey(trimmed);
     return { valid: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
