@@ -136,6 +136,16 @@ export function decryptPrivateKey(encrypted: EncryptedKeyEnvelope, kek: string):
     const authTag = Buffer.from(encrypted.authTag, 'base64');
     const ciphertext = Buffer.from(encrypted.encryptedData, 'base64');
 
+    // Validate buffer lengths before attempting decryption
+    if (iv.length !== IV_LENGTH) {
+      throw new Error(`Invalid IV length: expected ${IV_LENGTH}, got ${iv.length}`);
+    }
+    if (authTag.length !== AUTH_TAG_LENGTH) {
+      throw new Error(
+        `Invalid auth tag length: expected ${AUTH_TAG_LENGTH}, got ${authTag.length}`,
+      );
+    }
+
     const derivedKey = deriveKey(kek, salt);
 
     const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv, {

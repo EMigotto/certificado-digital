@@ -143,6 +143,60 @@ describe('encryptPrivateKey / decryptPrivateKey', () => {
       expect((err as KeyDecryptionError).name).toBe('KeyDecryptionError');
     }
   });
+
+  it('tampered IV → KeyDecryptionError', () => {
+    const pem = getTestPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+
+    // Flip a byte in the IV
+    const ivBuf = Buffer.from(envelope.iv, 'base64');
+    ivBuf[0] ^= 0xff;
+    const tampered: EncryptedKeyEnvelope = {
+      ...envelope,
+      iv: ivBuf.toString('base64'),
+    };
+
+    expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
+  });
+
+  it('invalid IV length → KeyDecryptionError', () => {
+    const pem = getTestPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+
+    const tampered: EncryptedKeyEnvelope = {
+      ...envelope,
+      iv: Buffer.from('short').toString('base64'),
+    };
+
+    expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
+  });
+
+  it('invalid auth tag length → KeyDecryptionError', () => {
+    const pem = getTestPem();
+    const envelope = encryptPrivateKey(pem, TEST_KEK);
+
+    const tampered: EncryptedKeyEnvelope = {
+      ...envelope,
+      authTag: Buffer.from('short').toString('base64'),
+    };
+
+    expect(() => decryptPrivateKey(tampered, TEST_KEK)).toThrow(KeyDecryptionError);
+  });
+
+  it('each encryption generates a unique IV and salt (10 runs)', () => {
+    const pem = getTestPem();
+    const ivs = new Set<string>();
+    const salts = new Set<string>();
+
+    for (let i = 0; i < 10; i++) {
+      const enc = encryptPrivateKey(pem, TEST_KEK);
+      ivs.add(enc.iv);
+      salts.add(enc.salt);
+    }
+
+    expect(ivs.size).toBe(10);
+    expect(salts.size).toBe(10);
+  });
 });
 
 // ─── Fingerprint ────────────────────────────────────────────────────────────
