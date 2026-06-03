@@ -1,11 +1,15 @@
 /**
- * Expiration policy and webhook domain types.
+ * Policy domain types.
  *
- * Policies define per-zone alert thresholds and notification preferences.
+ * This module contains two distinct policy concepts:
+ *   1. **ExpirationPolicy** — per-zone alert thresholds and notification preferences.
+ *   2. **CertificatePolicy** — certificate validation / compliance rules per environment (C7).
+ *
  * Dates are ISO-8601 strings at the API level.
  */
 
 import type { NotificationChannel } from './alert.js';
+import type { Environment } from './certificate.js';
 
 // ─── Threshold Configuration ───────────────────────────────────────────────
 
@@ -178,3 +182,59 @@ export interface WebhookTestResult {
   errorMessage: string | null;
   testedAt: string;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Certificate Compliance Policy (C7 — API REST & CLI)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Certificate validation / compliance policy.
+ *
+ * Each policy defines the rules that certificates must satisfy
+ * within a given environment (DEV / HML / PRD).
+ */
+export interface CertificatePolicy {
+  id: string;
+
+  /** Unique policy name (e.g. "prd-strict", "dev-relaxed") */
+  name: string;
+
+  /** Optional human-readable description */
+  description: string | null;
+
+  /** Target environment this policy applies to */
+  environment: Environment;
+
+  /** Minimum acceptable key size in bits (e.g. 2048, 4096) */
+  minKeySize: number;
+
+  /** Maximum certificate validity in days */
+  maxValidityDays: number;
+
+  /** Allowed key type identifiers (e.g. ["RSA-2048", "ECDSA-P256"]) */
+  allowedKeyTypes: string[];
+
+  /** Allowed organization names in the certificate subject */
+  allowedOrgNames: string[];
+
+  /** Fields that must be present on the certificate (e.g. ["team", "owner"]) */
+  requiredFields: string[];
+
+  /** Arbitrary rule definitions (extensible JSON) */
+  rules: Record<string, unknown>;
+
+  /** Record creation timestamp (ISO-8601) */
+  createdAt: string;
+
+  /** Record last-update timestamp (ISO-8601) */
+  updatedAt: string;
+}
+
+/** Payload for creating a new certificate policy (system fields omitted) */
+export type CertificatePolicyCreate = Omit<
+  CertificatePolicy,
+  'id' | 'createdAt' | 'updatedAt'
+>;
+
+/** Payload for updating an existing certificate policy (all fields optional) */
+export type CertificatePolicyUpdate = Partial<CertificatePolicyCreate>;

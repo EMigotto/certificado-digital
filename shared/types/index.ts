@@ -85,7 +85,27 @@ export type {
   WebhookCreate,
   WebhookUpdate,
   WebhookTestResult,
+  // C7 certificate compliance policy types
+  CertificatePolicy,
+  CertificatePolicyCreate,
+  CertificatePolicyUpdate,
 } from './policy.js';
+
+// Service token types (C7)
+export type {
+  TokenScope,
+  ServiceToken,
+  ServiceTokenCreate,
+  ServiceTokenCreateResponse,
+  ServiceTokenRevoke,
+} from './token.js';
+
+// Zone types (C7)
+export type {
+  Zone,
+  ZoneCreate,
+  ZoneUpdate,
+} from './zone.js';
 
 // Dashboard types
 export type {

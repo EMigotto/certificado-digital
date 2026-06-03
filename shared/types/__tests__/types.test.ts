@@ -50,6 +50,20 @@ import type {
   ExpirationWebhook,
   PolicyCreate,
   PolicyUpdate,
+  // C7 certificate policy types
+  CertificatePolicy,
+  CertificatePolicyCreate,
+  CertificatePolicyUpdate,
+  // Service token types (C7)
+  TokenScope,
+  ServiceToken,
+  ServiceTokenCreate,
+  ServiceTokenCreateResponse,
+  ServiceTokenRevoke,
+  // Zone types (C7)
+  Zone,
+  ZoneCreate,
+  ZoneUpdate,
   // Dashboard types
   TrendDirection,
   KpiTrend,
@@ -517,6 +531,114 @@ describe('shared types', () => {
       // PolicyUpdate fields are optional — verify that undefined is assignable
       expectTypeOf<undefined>().toMatchTypeOf<PolicyUpdate['name']>();
       expectTypeOf<undefined>().toMatchTypeOf<PolicyUpdate['thresholds']>();
+    });
+  });
+
+  // ─── C7 Certificate Policy Types ────────────────────────────────────────
+
+  describe('certificate policy types (C7)', () => {
+    it('CertificatePolicy should have expected shape', () => {
+      expectTypeOf<CertificatePolicy>().toHaveProperty('id');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('name');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('description');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('environment');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('minKeySize');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('maxValidityDays');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('allowedKeyTypes');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('allowedOrgNames');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('requiredFields');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('rules');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('createdAt');
+      expectTypeOf<CertificatePolicy>().toHaveProperty('updatedAt');
+    });
+
+    it('CertificatePolicyCreate should omit system fields', () => {
+      expectTypeOf<CertificatePolicyCreate>().not.toHaveProperty('id');
+      expectTypeOf<CertificatePolicyCreate>().not.toHaveProperty('createdAt');
+      expectTypeOf<CertificatePolicyCreate>().not.toHaveProperty('updatedAt');
+      expectTypeOf<CertificatePolicyCreate>().toHaveProperty('name');
+      expectTypeOf<CertificatePolicyCreate>().toHaveProperty('environment');
+      expectTypeOf<CertificatePolicyCreate>().toHaveProperty('minKeySize');
+    });
+
+    it('CertificatePolicyUpdate should have all optional fields', () => {
+      expectTypeOf<undefined>().toMatchTypeOf<CertificatePolicyUpdate['name']>();
+      expectTypeOf<undefined>().toMatchTypeOf<CertificatePolicyUpdate['minKeySize']>();
+      expectTypeOf<undefined>().toMatchTypeOf<CertificatePolicyUpdate['environment']>();
+    });
+  });
+
+  // ─── Service Token Types (C7) ────────────────────────────────────────────
+
+  describe('service token types (C7)', () => {
+    it('TokenScope should include all expected scope values', () => {
+      expectTypeOf<'certificates:read'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'certificates:write'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'certificates:delete'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'policies:read'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'policies:write'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'zones:read'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'zones:write'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'tokens:read'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'tokens:write'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'audit:read'>().toMatchTypeOf<TokenScope>();
+      expectTypeOf<'admin'>().toMatchTypeOf<TokenScope>();
+    });
+
+    it('ServiceToken should have expected shape', () => {
+      expectTypeOf<ServiceToken>().toHaveProperty('id');
+      expectTypeOf<ServiceToken>().toHaveProperty('name');
+      expectTypeOf<ServiceToken>().toHaveProperty('tokenPreview');
+      expectTypeOf<ServiceToken>().toHaveProperty('scopes');
+      expectTypeOf<ServiceToken>().toHaveProperty('createdAt');
+      expectTypeOf<ServiceToken>().toHaveProperty('expiresAt');
+      expectTypeOf<ServiceToken>().toHaveProperty('revokedAt');
+      expectTypeOf<ServiceToken>().toHaveProperty('revocationReason');
+      expectTypeOf<ServiceToken>().toHaveProperty('lastUsedAt');
+      expectTypeOf<ServiceToken>().toHaveProperty('createdBy');
+    });
+
+    it('ServiceTokenCreate should have name, scopes, and optional expiresAt', () => {
+      expectTypeOf<ServiceTokenCreate>().toHaveProperty('name');
+      expectTypeOf<ServiceTokenCreate>().toHaveProperty('scopes');
+      expectTypeOf<ServiceTokenCreate>().toHaveProperty('expiresAt');
+    });
+
+    it('ServiceTokenCreateResponse should expose plainToken and token', () => {
+      expectTypeOf<ServiceTokenCreateResponse>().toHaveProperty('token');
+      expectTypeOf<ServiceTokenCreateResponse>().toHaveProperty('plainToken');
+    });
+
+    it('ServiceTokenRevoke should have revocationReason', () => {
+      expectTypeOf<ServiceTokenRevoke>().toHaveProperty('revocationReason');
+    });
+  });
+
+  // ─── Zone Types (C7) ────────────────────────────────────────────────────
+
+  describe('zone types (C7)', () => {
+    it('Zone should have expected shape', () => {
+      expectTypeOf<Zone>().toHaveProperty('id');
+      expectTypeOf<Zone>().toHaveProperty('name');
+      expectTypeOf<Zone>().toHaveProperty('description');
+      expectTypeOf<Zone>().toHaveProperty('region');
+      expectTypeOf<Zone>().toHaveProperty('metadata');
+      expectTypeOf<Zone>().toHaveProperty('createdAt');
+      expectTypeOf<Zone>().toHaveProperty('updatedAt');
+    });
+
+    it('ZoneCreate should omit system fields', () => {
+      expectTypeOf<ZoneCreate>().not.toHaveProperty('id');
+      expectTypeOf<ZoneCreate>().not.toHaveProperty('createdAt');
+      expectTypeOf<ZoneCreate>().not.toHaveProperty('updatedAt');
+      expectTypeOf<ZoneCreate>().toHaveProperty('name');
+      expectTypeOf<ZoneCreate>().toHaveProperty('region');
+    });
+
+    it('ZoneUpdate should have all optional fields', () => {
+      expectTypeOf<undefined>().toMatchTypeOf<ZoneUpdate['name']>();
+      expectTypeOf<undefined>().toMatchTypeOf<ZoneUpdate['description']>();
+      expectTypeOf<undefined>().toMatchTypeOf<ZoneUpdate['region']>();
     });
   });
 

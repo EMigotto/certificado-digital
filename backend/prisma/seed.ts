@@ -359,12 +359,87 @@ function generateCertificate(index: number): SeedCertificate {
 // Main seed function
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// C7 seed data — certificate policies and zones
+// ---------------------------------------------------------------------------
+
+const SEED_POLICIES = [
+  {
+    name: 'dev-relaxed',
+    description: 'Relaxed policy for development environments — permits smaller keys and longer validity.',
+    environment: Environment.DEV,
+    minKeySize: 2048,
+    maxValidityDays: 730,
+    allowedKeyTypes: ['RSA-2048', 'RSA-4096', 'ECDSA-P256', 'ECDSA-P384'],
+    allowedOrgNames: ['Corp Banking', 'Corp Dev'],
+    requiredFields: ['owner', 'application'],
+    rules: {},
+  },
+  {
+    name: 'hml-standard',
+    description: 'Standard policy for homologation — mirrors production constraints with relaxed validity.',
+    environment: Environment.HML,
+    minKeySize: 2048,
+    maxValidityDays: 365,
+    allowedKeyTypes: ['RSA-2048', 'RSA-4096', 'ECDSA-P256', 'ECDSA-P384'],
+    allowedOrgNames: ['Corp Banking'],
+    requiredFields: ['owner', 'team', 'application'],
+    rules: { requireApproval: false },
+  },
+  {
+    name: 'prd-strict',
+    description: 'Strict production policy — enforces strong keys, short validity, and mandatory metadata.',
+    environment: Environment.PRD,
+    minKeySize: 4096,
+    maxValidityDays: 90,
+    allowedKeyTypes: ['RSA-4096', 'ECDSA-P384'],
+    allowedOrgNames: ['Corp Banking'],
+    requiredFields: ['owner', 'team', 'application', 'zone'],
+    rules: { requireApproval: true, requireSecurityReview: true },
+  },
+] as const;
+
+const SEED_ZONES = [
+  {
+    name: 'dmz',
+    description: 'Demilitarized zone — internet-facing services and reverse proxies.',
+    region: 'sa-east-1',
+    metadata: { networkCidr: '10.0.1.0/24', firewallProfile: 'strict' },
+  },
+  {
+    name: 'internal',
+    description: 'Internal corporate network — backend services and databases.',
+    region: 'sa-east-1',
+    metadata: { networkCidr: '10.0.2.0/24', firewallProfile: 'standard' },
+  },
+  {
+    name: 'restricted',
+    description: 'Restricted zone — PCI-DSS and compliance-sensitive workloads.',
+    region: 'sa-east-1',
+    metadata: { networkCidr: '10.0.3.0/24', firewallProfile: 'pci-dss', compliance: ['PCI-DSS', 'SOX'] },
+  },
+  {
+    name: 'public',
+    description: 'Public-facing zone — CDN origins and public API endpoints.',
+    region: 'us-east-1',
+    metadata: { networkCidr: '10.1.0.0/24', firewallProfile: 'cdn-optimized' },
+  },
+  {
+    name: 'dr-site',
+    description: 'Disaster recovery site — standby replicas and failover endpoints.',
+    region: 'eu-west-1',
+    metadata: { networkCidr: '10.2.0.0/24', firewallProfile: 'standard', isPrimary: false },
+  },
+] as const;
+
 async function main(): Promise<void> {
   console.log(`🌱 Seeding ${SEED_COUNT} certificates …`);
 
   // Clear existing data (order matters for FK constraints)
   await prisma.auditEntry.deleteMany();
   await prisma.certificate.deleteMany();
+  await prisma.certificatePolicy.deleteMany();
+  await prisma.zone.deleteMany();
 
   // Generate and insert certificates in batches
   const certIds: string[] = [];
@@ -417,9 +492,27 @@ async function main(): Promise<void> {
     });
   }
 
+  // Seed C7 certificate policies
+  console.log('\n🏛️  Seeding certificate policies …');
+  for (const policy of SEED_POLICIES) {
+    await prisma.certificatePolicy.create({ data: { ...policy, rules: policy.rules as Record<string, unknown> } });
+  }
+  const totalPolicies = await prisma.certificatePolicy.count();
+  console.log(`  ✔ ${totalPolicies} certificate policies created`);
+
+  // Seed C7 zones
+  console.log('\n🗺️  Seeding zones …');
+  for (const zone of SEED_ZONES) {
+    await prisma.zone.create({ data: { ...zone, metadata: zone.metadata as Record<string, unknown> } });
+  }
+  const totalZones = await prisma.zone.count();
+  console.log(`  ✔ ${totalZones} zones created`);
+
   const totalCerts = await prisma.certificate.count();
   const totalAudit = await prisma.auditEntry.count();
-  console.log(`\n✅ Seed complete: ${totalCerts} certificates, ${totalAudit} audit entries`);
+  console.log(
+    `\n✅ Seed complete: ${totalCerts} certificates, ${totalAudit} audit entries, ${totalPolicies} policies, ${totalZones} zones`,
+  );
 }
 
 main()
