@@ -25,6 +25,7 @@ export async function auditRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/audit',
+    { config: { requiredScope: 'audit:read' } },
     async (
       request: FastifyRequest<{
         Querystring: AuditFilterParams;
@@ -40,6 +41,7 @@ export async function auditRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/audit/batch/:batchId',
+    { config: { requiredScope: 'audit:read' } },
     async (
       request: FastifyRequest<{
         Params: { batchId: string };

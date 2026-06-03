@@ -18,6 +18,7 @@ export async function schedulerRoutes(server: FastifyInstance): Promise<void> {
   // ── POST /api/internal/scheduler/expiration-check — Manual trigger ──────
   server.post(
     '/api/internal/scheduler/expiration-check',
+    { config: { requiredScope: 'admin' } },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const service = getSchedulerService();
       const status = service.getStatus();
@@ -43,6 +44,7 @@ export async function schedulerRoutes(server: FastifyInstance): Promise<void> {
   // ── GET /api/internal/scheduler/expiration-check/status — Status ────────
   server.get(
     '/api/internal/scheduler/expiration-check/status',
+    { config: { requiredScope: 'admin' } },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const service = getSchedulerService();
       const status = service.getStatus();
@@ -54,6 +56,7 @@ export async function schedulerRoutes(server: FastifyInstance): Promise<void> {
   // ── GET /api/internal/scheduler/logs — Recent execution logs ────────────
   server.get(
     '/api/internal/scheduler/logs',
+    { config: { requiredScope: 'admin' } },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const service = getSchedulerService();
       const logs = service.getLogs();

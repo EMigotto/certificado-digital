@@ -27,6 +27,7 @@ export async function dashboardRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/dashboard/snapshot',
+    { config: { requiredScope: 'certificates:read' } },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const snapshot = await service.getSnapshot();
 
@@ -45,6 +46,7 @@ export async function dashboardRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/dashboard/heatmap',
+    { config: { requiredScope: 'certificates:read' } },
     async (
       request: FastifyRequest<{
         Querystring: { days?: string };
@@ -73,6 +75,7 @@ export async function dashboardRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/dashboard/critical-alerts',
+    { config: { requiredScope: 'certificates:read' } },
     async (
       request: FastifyRequest<{
         Querystring: { limit?: string };

@@ -68,6 +68,18 @@ const envSchema = z.object({
 
   /** Default maximum retries for webhook delivery */
   WEBHOOK_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+
+  // ── API Authentication settings ──────────────────────────────────────────
+
+  /**
+   * When true, requests without an Authorization header from browser origins
+   * (matching CORS_ORIGIN) pass through without auth. Allows the existing
+   * UI to continue working until session-based auth is implemented.
+   */
+  AUTH_SKIP_UI: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

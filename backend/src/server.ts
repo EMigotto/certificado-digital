@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
 import { registerOpenApi } from './plugins/openapi.js';
+import authPlugin from './plugins/auth.js';
 import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
 import { auditRoutes } from './routes/audit.js';
@@ -29,6 +30,9 @@ export async function buildServer() {
 
   // Register OpenAPI / Swagger documentation
   await registerOpenApi(server);
+
+  // Register token authentication middleware
+  await server.register(authPlugin);
 
   // Health-check route
   server.get('/health', {

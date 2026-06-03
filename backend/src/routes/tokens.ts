@@ -107,7 +107,7 @@ export async function tokenRoutes(server: FastifyInstance): Promise<void> {
 
   server.post(
     '/api/tokens',
-    { schema: createTokenSchema },
+    { config: { requiredScope: 'tokens:write' }, schema: createTokenSchema },
     async (
       request: FastifyRequest<{ Body: CreateTokenBody }>,
       reply: FastifyReply,
@@ -139,7 +139,7 @@ export async function tokenRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/tokens',
-    { schema: listTokensQuerySchema },
+    { config: { requiredScope: 'tokens:read' }, schema: listTokensQuerySchema },
     async (
       request: FastifyRequest<{ Querystring: ListTokensQuery }>,
       reply: FastifyReply,
@@ -153,7 +153,7 @@ export async function tokenRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/tokens/:id',
-    { schema: tokenIdParamSchema },
+    { config: { requiredScope: 'tokens:read' }, schema: tokenIdParamSchema },
     async (
       request: FastifyRequest<{ Params: TokenIdParams }>,
       reply: FastifyReply,
@@ -177,7 +177,7 @@ export async function tokenRoutes(server: FastifyInstance): Promise<void> {
 
   server.post(
     '/api/tokens/:id/revoke',
-    { schema: { ...tokenIdParamSchema, ...revokeTokenSchema } },
+    { config: { requiredScope: 'tokens:write' }, schema: { ...tokenIdParamSchema, ...revokeTokenSchema } },
     async (
       request: FastifyRequest<{ Params: TokenIdParams; Body: RevokeTokenBody }>,
       reply: FastifyReply,

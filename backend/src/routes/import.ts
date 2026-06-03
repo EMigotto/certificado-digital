@@ -31,7 +31,7 @@ export async function importRoutes(server: FastifyInstance): Promise<void> {
 
   // ── POST /api/certificates/import — Single file upload ──────────────────
 
-  server.post('/api/certificates/import', async (request: FastifyRequest, reply: FastifyReply) => {
+  server.post('/api/certificates/import', { config: { requiredScope: 'certificates:write' } }, async (request: FastifyRequest, reply: FastifyReply) => {
     let data;
     try {
       data = await request.file();
@@ -118,6 +118,7 @@ export async function importRoutes(server: FastifyInstance): Promise<void> {
 
   server.post(
     '/api/certificates/import/csv',
+    { config: { requiredScope: 'certificates:write' } },
     async (request: FastifyRequest<{ Querystring: { confirm?: string } }>, reply: FastifyReply) => {
       let data;
       try {
@@ -179,6 +180,7 @@ export async function importRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/certificates/import/csv/template',
+    { config: { requiredScope: 'certificates:read' } },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       const template = generateCsvTemplate();
       return reply

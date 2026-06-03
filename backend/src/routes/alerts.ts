@@ -20,6 +20,7 @@ export async function alertRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/alerts/expiration',
+    { config: { requiredScope: 'certificates:read' } },
     async (
       request: FastifyRequest<{
         Querystring: ListAlertsQuery;
@@ -35,6 +36,7 @@ export async function alertRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/alerts/expiration/:id',
+    { config: { requiredScope: 'certificates:read' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -58,6 +60,7 @@ export async function alertRoutes(server: FastifyInstance): Promise<void> {
 
   server.put(
     '/api/alerts/expiration/:id',
+    { config: { requiredScope: 'certificates:write' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -89,6 +92,7 @@ export async function alertRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/certificates/:id/alerts',
+    { config: { requiredScope: 'certificates:read' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };

@@ -15,6 +15,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/policies/expiration',
+    { config: { requiredScope: 'policies:read' } },
     async (
       request: FastifyRequest<{
         Querystring: ListPoliciesQuery;
@@ -30,6 +31,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.post(
     '/api/policies/expiration',
+    { config: { requiredScope: 'policies:write' } },
     async (
       request: FastifyRequest<{
         Body: PolicyCreateWithWebhooks;
@@ -75,6 +77,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/policies/expiration/:id',
+    { config: { requiredScope: 'policies:read' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -100,6 +103,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.put(
     '/api/policies/expiration/:id',
+    { config: { requiredScope: 'policies:write' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -147,6 +151,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.delete(
     '/api/policies/expiration/:id',
+    { config: { requiredScope: 'policies:write' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -172,6 +177,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.get(
     '/api/zones/:zoneId/policies/expiration',
+    { config: { requiredScope: 'policies:read' } },
     async (
       request: FastifyRequest<{
         Params: { zoneId: string };
@@ -197,6 +203,7 @@ export async function policyRoutes(server: FastifyInstance): Promise<void> {
 
   server.post(
     '/api/policies/expiration/:id/test-webhook',
+    { config: { requiredScope: 'policies:write' } },
     async (
       request: FastifyRequest<{
         Params: { id: string };
