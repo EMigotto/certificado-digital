@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { config } from './config.js';
+import { registerOpenApi } from './plugins/openapi.js';
 import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
 import { auditRoutes } from './routes/audit.js';
@@ -9,6 +10,7 @@ import { schedulerRoutes } from './routes/scheduler.js';
 import { startScheduler, stopScheduler } from './scheduler/cronJob.js';
 import { policyRoutes } from './routes/policies.js';
 import { dashboardRoutes } from './routes/dashboard.js';
+import { healthResponseSchema } from './schemas/index.js';
 
 /** Build and configure the Fastify instance */
 export async function buildServer() {
@@ -24,9 +26,22 @@ export async function buildServer() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // Register OpenAPI / Swagger documentation
+  await registerOpenApi(server);
+
   // Health-check route
-  server.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  server.get('/health', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Health check',
+      description: 'Returns server health status and current timestamp.',
+      response: {
+        200: healthResponseSchema,
+      },
+    },
+    handler: async () => {
+      return { status: 'ok', timestamp: new Date().toISOString() };
+    },
   });
 
   // Certificate CRUD routes

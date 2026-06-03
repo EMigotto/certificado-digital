@@ -2,6 +2,16 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { CertificateService, type ListCertificatesQuery } from '../services/certificateService.js';
 import { CertificateRepository } from '../repositories/certificateRepo.js';
 import prisma from '../prismaClient.js';
+import {
+  certificateListQuerySchema,
+  certificateListResponseSchema,
+  certificateDetailSchema,
+  certificateIdParamSchema,
+  certificateExportParamSchema,
+  filterMetaResponseSchema,
+  errorResponseSchema,
+  notFoundResponseSchema,
+} from '../schemas/index.js';
 
 /**
  * Register certificate CRUD routes under /api prefix.
@@ -14,6 +24,18 @@ export async function certificateRoutes(server: FastifyInstance): Promise<void> 
 
   server.get(
     '/api/certificates',
+    {
+      schema: {
+        tags: ['Certificates'],
+        summary: 'List certificates',
+        description:
+          'Retrieve a paginated list of certificates with optional search, filter, and sort.',
+        querystring: certificateListQuerySchema,
+        response: {
+          200: certificateListResponseSchema,
+        },
+      },
+    },
     async (
       request: FastifyRequest<{
         Querystring: ListCertificatesQuery;
@@ -29,6 +51,18 @@ export async function certificateRoutes(server: FastifyInstance): Promise<void> 
 
   server.get(
     '/api/certificates/:id',
+    {
+      schema: {
+        tags: ['Certificates'],
+        summary: 'Get certificate detail',
+        description: 'Retrieve a single certificate by its UUID.',
+        params: certificateIdParamSchema,
+        response: {
+          200: certificateDetailSchema,
+          404: notFoundResponseSchema,
+        },
+      },
+    },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -52,6 +86,18 @@ export async function certificateRoutes(server: FastifyInstance): Promise<void> 
 
   server.get(
     '/api/certificates/:id/export/:format',
+    {
+      schema: {
+        tags: ['Certificates'],
+        summary: 'Export certificate',
+        description: 'Download a certificate in PEM or JSON format.',
+        params: certificateExportParamSchema,
+        response: {
+          400: errorResponseSchema,
+          404: notFoundResponseSchema,
+        },
+      },
+    },
     async (
       request: FastifyRequest<{
         Params: { id: string; format: string };
@@ -88,6 +134,19 @@ export async function certificateRoutes(server: FastifyInstance): Promise<void> 
 
   server.delete(
     '/api/certificates/:id',
+    {
+      schema: {
+        tags: ['Certificates'],
+        summary: 'Delete certificate',
+        description: 'Soft-delete (revoke) a certificate by its UUID.',
+        params: certificateIdParamSchema,
+        security: [{ BearerAuth: [] }],
+        response: {
+          200: certificateDetailSchema,
+          404: notFoundResponseSchema,
+        },
+      },
+    },
     async (
       request: FastifyRequest<{
         Params: { id: string };
@@ -109,8 +168,22 @@ export async function certificateRoutes(server: FastifyInstance): Promise<void> 
 
   // ── GET /api/meta/filters — Available filter values for dropdowns ────────
 
-  server.get('/api/meta/filters', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const meta = await service.getFilterMeta();
-    return reply.send(meta);
-  });
+  server.get(
+    '/api/meta/filters',
+    {
+      schema: {
+        tags: ['Certificates'],
+        summary: 'Get filter metadata',
+        description:
+          'Retrieve available filter values (environments, applications, owners, zones, statuses) for UI dropdowns.',
+        response: {
+          200: filterMetaResponseSchema,
+        },
+      },
+    },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      const meta = await service.getFilterMeta();
+      return reply.send(meta);
+    },
+  );
 }
