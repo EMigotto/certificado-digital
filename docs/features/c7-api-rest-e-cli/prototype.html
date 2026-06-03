@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificado Digital - API Token Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: white;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        header p {
+            color: #666;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .page-header h2 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background-color: #0066cc;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0052a3;
+        }
+        
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #d0d0d0;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e6e6e6;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        
+        .card {
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background-color: #fafafa;
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table thead {
+            background-color: #fafafa;
+        }
+        
+        .table th {
+            text-align: left;
+            padding: 12px 20px;
+            font-weight: 600;
+            color: #666;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .table td {
+            padding: 12px 20px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        
+        .table tbody tr:hover {
+            background-color: #fafafa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .token-display {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+        
+        .token-display.masked {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d0d0d0;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        }
+        
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+        }
+        
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            cursor: pointer;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h3 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+        }
+        
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .scope-description {
+            font-size: 13px;
+            color: #666;
+            margin-top: 3px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 1px solid #e0e0e0;
+            margin-bottom: 20px;
+        }
+        
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button.active {
+            color: #0066cc;
+            border-bottom-color: #0066cc;
+        }
+        
+        .tab-button:hover {
+            color: #0066cc;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .copy-button {
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .token-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .token-info {
+            flex: 1;
+        }
+        
+        .token-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .token-scopes {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .token-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 12px;
+            color: #999;
+        }
+        
+        .token-actions {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Certificado Digital</h1>
+            <p>Certificate Management System</p>
+        </div>
+    </header>
+    
+    <main class="container">
+        <!-- Tabs for API Documentation vs Token Management -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('tokens')">Service Tokens</button>
+            <button class="tab-button" onclick="switchTab('api-docs')">API Documentation</button>
+            <button class="tab-button" onclick="switchTab('cli-guide')">CLI Guide</button>
+        </div>
+        
+        <!-- Tab 1: Service Tokens Management -->
+        <div id="tokens" class="tab-content active">
+            <div class="page-header">
+                <div>
+                    <h2>Service Tokens</h2>
+                    <p style="color: #666; margin-top: 5px;">Create and manage API tokens for service-to-service authentication</p>
+                </div>
+                <button class="btn btn-primary" onclick="openCreateTokenModal()">Create Token</button>
+            </div>
+            
+            <!-- Create Token Modal -->
+            <div id="createTokenModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Create Service Token</h3>
+                        <button class="modal-close" onclick="closeCreateTokenModal()">&times;</button>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        Service tokens are long-lived credentials for API access. Keep them secure and rotate regularly.
+                    </div>
+                    
+                    <form onsubmit="createToken(event)">
+                        <div class="form-group">
+                            <label for="token-name">Token Name *</label>
+                            <input type="text" id="token-name" placeholder="e.g., CI Pipeline Prod" required>
+                            <small style="color: #666; margin-top: 5px; display: block;">Human-readable name for this token</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Scopes *</label>
+                            <div class="checkbox-group">
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-read" value="cert:read" checked>
+                                    <label for="scope-cert-read" style="margin: 0;">cert:read</label>
+                                    <div class="scope-description">List and view certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-create" value="cert:create">
+                                    <label for="scope-cert-create" style="margin: 0;">cert:create</label>
+                                    <div class="scope-description">Create new certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-update" value="cert:update">
+                                    <label for="scope-cert-update" style="margin: 0;">cert:update</label>
+                                    <div class="scope-description">Modify certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-delete" value="cert:delete">
+                                    <label for="scope-cert-delete" style="margin: 0;">cert:delete</label>
+                                    <div class="scope-description">Revoke certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-csr" value="cert:csr">
+                                    <label for="scope-cert-csr" style="margin: 0;">cert:csr</label>
+                                    <div class="scope-description">Generate CSRs</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-renew" value="cert:renew">
+                                    <label for="scope-cert-renew" style="margin: 0;">cert:renew</label>
+                                    <div class="scope-description">Renew certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-cert-revoke" value="cert:revoke">
+                                    <label for="scope-cert-revoke" style="margin: 0;">cert:revoke</label>
+                                    <div class="scope-description">Revoke certificates</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-policy-read" value="policy:read">
+                                    <label for="scope-policy-read" style="margin: 0;">policy:read</label>
+                                    <div class="scope-description">Read policies</div>
+                                </div>
+                                <div class="checkbox-item">
+                                    <input type="checkbox" id="scope-zone-read" value="zone:read">
+                                    <label for="scope-zone-read" style="margin: 0;">zone:read</label>
+                                    <div class="scope-description">Read zones</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="token-expiry">Expiration (seconds) *</label>
+                            <input type="number" id="token-expiry" value="2592000" placeholder="2592000 (30 days)" required>
+                            <small style="color: #666; margin-top: 5px; display: block;">86400 = 1 day, 604800 = 7 days, 2592000 = 30 days</small>
+                        </div>
+                        
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" onclick="closeCreateTokenModal()">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Create Token</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Token Created Success Modal -->
+            <div id="tokenSuccessModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Token Created Successfully</h3>
+                    </div>
+                    
+                    <div class="alert alert-success">
+                        Copy your token now. You will not be able to see it again.
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Your Token</label>
+                        <div style="display: flex; align-items: center;">
+                            <div class="token-display" id="tokenValue" style="flex: 1; margin: 0; margin-right: 10px;"></div>
+                            <button class="btn btn-secondary btn-small" onclick="copyToken()">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Environment Variable</label>
+                        <div style="display: flex; align-items: center;">
+                            <div class="token-display" id="tokenEnvVar" style="flex: 1; margin: 0; margin-right: 10px; background-color: #f8f9fa;"></div>
+                            <button class="btn btn-secondary btn-small" onclick="copyEnvVar()">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>CLI Configuration</label>
+                        <div style="display: flex; align-items: center;">
+                            <pre style="flex: 1; margin: 0; margin-right: 10px; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;"><code>certificado-cli config set token &lt;paste-token-here&gt;</code></pre>
+                            <button class="btn btn-secondary btn-small" onclick="copyCliCommand()">Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" onclick="closeSuccessModal()">Done</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Active Tokens List -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Active Tokens</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Scopes</th>
+                                <th>Expires At</th>
+                                <th>Created At</th>
+                                <th>Status</th>
+                                <th style="width: 100px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>CI Pipeline Prod</strong></td>
+                                <td><small>cert:read, cert:renew, cert:revoke</small></td>
+                                <td>2026-07-03</td>
+                                <td>2026-06-03</td>
+                                <td><span class="badge badge-success">Active</span></td>
+                                <td>
+                                    <button class="btn btn-secondary btn-small" onclick="viewTokenDetails()">View</button>
+                                    <button class="btn btn-danger btn-small" onclick="revokeToken()">Revoke</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dev Workstation</strong></td>
+                                <td><small>cert:read, cert:csr</small></td>
+                                <td>2026-06-10</td>
+                                <td>2026-05-27</td>
+                                <td><span class="badge badge-warning">Expiring Soon</span></td>
+                                <td>
+                                    <button class="btn btn-secondary btn-small" onclick="viewTokenDetails()">View</button>
+                                    <button class="btn btn-danger btn-small" onclick="revokeToken()">Revoke</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Legacy Import Tool</strong></td>
+                                <td><small>cert:read, cert:create</small></td>
+                                <td>2026-04-03 (expired)</td>
+                                <td>2025-04-03</td>
+                                <td><span class="badge badge-danger">Expired</span></td>
+                                <td>
+                                    <button class="btn btn-secondary btn-small" onclick="viewTokenDetails()">View</button>
+                                    <button class="btn btn-danger btn-small" onclick="revokeToken()">Remove</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Token Usage Examples -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Usage Examples</h3>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px;">cURL</h4>
+                        <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>curl -H "Authorization: Bearer st_xxxxx..." \
+  https://api.example.com/api/certificates</code></pre>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 10px;">CLI</h4>
+                        <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>export CERTIFICADO_TOKEN=st_xxxxx...
+export CERTIFICADO_API_URL=https://api.example.com
+
+certificado-cli certs list
+certificado-cli certs get &lt;id&gt; --export pem > cert.pem
+certificado-cli certs renew &lt;id&gt;</code></pre>
+                    </div>
+                    
+                    <div>
+                        <h4 style="margin-bottom: 10px;">Python</h4>
+                        <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>import requests
+
+headers = {
+    "Authorization": f"Bearer st_xxxxx..."
+}
+response = requests.get(
+    "https://api.example.com/api/certificates",
+    headers=headers
+)
+print(response.json())</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: API Documentation -->
+        <div id="api-docs" class="tab-content">
+            <h2>API Documentation</h2>
+            <p style="margin: 20px 0; color: #666;">Full API documentation is available at <code>/api/docs</code> with Swagger UI.</p>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Endpoints Overview</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>Endpoint</th>
+                                <th>Description</th>
+                                <th>Auth Scope</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span style="background-color: #d4edda; color: #155724; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">GET</span></td>
+                                <td><code>/api/certificates</code></td>
+                                <td>List all certificates (paginated)</td>
+                                <td>cert:read</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #d4edda; color: #155724; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">GET</span></td>
+                                <td><code>/api/certificates/:id</code></td>
+                                <td>Get certificate details</td>
+                                <td>cert:read</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #cfe2ff; color: #084298; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">POST</span></td>
+                                <td><code>/api/certificates</code></td>
+                                <td>Create new certificate</td>
+                                <td>cert:create</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #fff3cd; color: #664d03; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">PATCH</span></td>
+                                <td><code>/api/certificates/:id</code></td>
+                                <td>Update certificate metadata</td>
+                                <td>cert:update</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #f8d7da; color: #842029; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">DELETE</span></td>
+                                <td><code>/api/certificates/:id</code></td>
+                                <td>Soft-delete (revoke) certificate</td>
+                                <td>cert:delete</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #cfe2ff; color: #084298; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">POST</span></td>
+                                <td><code>/api/csr</code></td>
+                                <td>Generate CSR and private key</td>
+                                <td>cert:csr</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #cfe2ff; color: #084298; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">POST</span></td>
+                                <td><code>/api/certificates/:id/renew</code></td>
+                                <td>Renew a certificate</td>
+                                <td>cert:renew</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #cfe2ff; color: #084298; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">POST</span></td>
+                                <td><code>/api/certificates/:id/revoke</code></td>
+                                <td>Revoke a certificate</td>
+                                <td>cert:revoke</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #d4edda; color: #155724; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">GET</span></td>
+                                <td><code>/api/policies</code></td>
+                                <td>List policies</td>
+                                <td>policy:read</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #d4edda; color: #155724; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">GET</span></td>
+                                <td><code>/api/zones</code></td>
+                                <td>List zones</td>
+                                <td>zone:read</td>
+                            </tr>
+                            <tr>
+                                <td><span style="background-color: #cfe2ff; color: #084298; padding: 2px 6px; border-radius: 3px; font-size: 12px; font-weight: 500;">POST</span></td>
+                                <td><code>/api/tokens</code></td>
+                                <td>Create service token</td>
+                                <td>User session only</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 3: CLI Guide -->
+        <div id="cli-guide" class="tab-content">
+            <h2>CLI Installation & Usage</h2>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Installation</h3>
+                </div>
+                <div class="card-body">
+                    <h4 style="margin-bottom: 10px;">macOS / Linux</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>tar -xzf certificado-cli-1.0.0-linux-x64.tar.gz
+sudo mv certificado-cli /usr/local/bin/
+certificado-cli --version</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Windows</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>Expand-Archive certificado-cli-1.0.0-windows-x64.zip -DestinationPath C:\Program Files\
+certificado-cli --version</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Configuration</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>certificado-cli config set api_url https://api.example.com
+certificado-cli config set token st_xxxxx...</code></pre>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>Common Commands</h3>
+                </div>
+                <div class="card-body">
+                    <h4 style="margin-bottom: 10px;">List Certificates</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>certificado-cli certs list
+certificado-cli certs list --filter-status EXPIRING_SOON
+certificado-cli certs list --format json | jq .</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Get Certificate</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>certificado-cli certs get abc123
+certificado-cli certs get abc123 --export pem > cert.pem
+certificado-cli certs get abc123 --format json | jq .</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Generate CSR</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>certificado-cli csr generate --cn api.example.com --key-size 2048
+certificado-cli csr generate \
+  --cn api.example.com \
+  --org "My Company" \
+  --country US \
+  --state CA \
+  --output-csr csr.pem \
+  --output-key key.pem</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Renew Certificate</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; margin-bottom: 20px;"><code>certificado-cli certs renew abc123 --dry-run
+certificado-cli certs renew abc123</code></pre>
+                    
+                    <h4 style="margin-bottom: 10px;">Revoke Certificate</h4>
+                    <pre style="background-color: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>certificado-cli certs revoke abc123 --reason compromised
+certificado-cli certs revoke abc123 --reason superseded --comment "Replaced by XYZ"</code></pre>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        function switchTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Deactivate all buttons
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            
+            // Activate clicked button
+            event.target.classList.add('active');
+        }
+        
+        function openCreateTokenModal() {
+            document.getElementById('createTokenModal').classList.add('active');
+        }
+        
+        function closeCreateTokenModal() {
+            document.getElementById('createTokenModal').classList.remove('active');
+        }
+        
+        function closeSuccessModal() {
+            document.getElementById('tokenSuccessModal').classList.remove('active');
+        }
+        
+        function createToken(event) {
+            event.preventDefault();
+            
+            const name = document.getElementById('token-name').value;
+            const expiresIn = document.getElementById('token-expiry').value;
+            
+            // Collect selected scopes
+            const scopes = Array.from(document.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(cb => cb.value);
+            
+            // Simulate token creation
+            const token = 'st_' + Math.random().toString(36).substr(2, 32);
+            
+            // Show success modal
+            document.getElementById('tokenValue').textContent = token;
+            document.getElementById('tokenEnvVar').textContent = `export CERTIFICADO_TOKEN="${token}"`;
+            
+            closeCreateTokenModal();
+            document.getElementById('tokenSuccessModal').classList.add('active');
+        }
+        
+        function copyToken() {
+            const token = document.getElementById('tokenValue').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                alert('Token copied to clipboard');
+            });
+        }
+        
+        function copyEnvVar() {
+            const envVar = document.getElementById('tokenEnvVar').textContent;
+            navigator.clipboard.writeText(envVar).then(() => {
+                alert('Environment variable copied to clipboard');
+            });
+        }
+        
+        function copyCliCommand() {
+            const cmd = `certificado-cli config set token ${document.getElementById('tokenValue').textContent}`;
+            navigator.clipboard.writeText(cmd).then(() => {
+                alert('CLI command copied to clipboard');
+            });
+        }
+        
+        function viewTokenDetails() {
+            alert('Token details view (not implemented in prototype)');
+        }
+        
+        function revokeToken() {
+            if (confirm('Are you sure you want to revoke this token? This action cannot be undone.')) {
+                alert('Token revoked successfully');
+            }
+        }
+    </script>
+</body>
+</html>
