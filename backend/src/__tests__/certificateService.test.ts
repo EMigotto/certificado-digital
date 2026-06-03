@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   CertificateService,
+  CertificateValidationError,
+  CertificateDuplicateError,
+  CertificateNotFoundError,
+  CertificateImmutableFieldError,
   computeStatus,
   computeDaysUntilExpiry,
   mapToApiCertificate,
@@ -55,6 +59,9 @@ function makeMockRepo(): {
   const mocks = {
     findMany: vi.fn(),
     findById: vi.fn(),
+    findByFingerprint: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
     softDelete: vi.fn(),
     createAuditEntry: vi.fn(),
     getDistinctEnvironments: vi.fn(),
@@ -358,6 +365,228 @@ describe('CertificateService', () => {
       expect(result.owners).toEqual(['teamA', 'teamB']);
       expect(result.algorithms).toEqual(['SHA256withRSA', 'SHA256withECDSA']);
       expect(result.tagKeys).toEqual(['team', 'env']);
+    });
+  });
+
+  // ── createCertificate ──────────────────────────────────────────────────────
+
+  describe('createCertificate', () => {
+    const validPayload = {
+      commonName: 'new.example.com',
+      serialNumber: 'FF:EE:DD:CC',
+      notBefore: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      notAfter: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+      signatureAlgorithm: 'SHA256withRSA',
+      fingerprintSha256: 'new:fp:hash',
+      owner: 'teamX',
+      application: 'my-app',
+      environment: 'DEV',
+    };
+
+    it('should create a certificate and return mapped result', async () => {
+      mocks.findByFingerprint.mockResolvedValue(null);
+      mocks.create.mockResolvedValue(makeCert({
+        commonName: 'new.example.com',
+        importSource: 'API_SYNC',
+      }));
+      mocks.createAuditEntry.mockResolvedValue(undefined);
+
+      const result = await service.createCertificate(validPayload, 'admin');
+
+      expect(result.commonName).toBe('new.example.com');
+      expect(mocks.create).toHaveBeenCalledTimes(1);
+      expect(mocks.createAuditEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'CREATE',
+          actor: 'admin',
+          result: 'SUCCESS',
+        }),
+      );
+    });
+
+    it('should set importSource to API_SYNC', async () => {
+      mocks.findByFingerprint.mockResolvedValue(null);
+      mocks.create.mockResolvedValue(makeCert({ importSource: 'API_SYNC' }));
+      mocks.createAuditEntry.mockResolvedValue(undefined);
+
+      await service.createCertificate(validPayload);
+
+      const createCall = mocks.create.mock.calls[0][0];
+      expect(createCall.importSource).toBe('API_SYNC');
+    });
+
+    it('should throw CertificateValidationError when commonName is missing', async () => {
+      const payload = { ...validPayload, commonName: '' };
+
+      await expect(service.createCertificate(payload)).rejects.toThrow(
+        CertificateValidationError,
+      );
+    });
+
+    it('should throw CertificateValidationError for invalid environment', async () => {
+      const payload = { ...validPayload, environment: 'STAGING' };
+
+      await expect(service.createCertificate(payload)).rejects.toThrow(
+        CertificateValidationError,
+      );
+    });
+
+    it('should throw CertificateValidationError when notAfter is before notBefore', async () => {
+      const payload = {
+        ...validPayload,
+        notBefore: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        notAfter: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      await expect(service.createCertificate(payload)).rejects.toThrow(
+        CertificateValidationError,
+      );
+    });
+
+    it('should throw CertificateDuplicateError for duplicate fingerprint', async () => {
+      mocks.findByFingerprint.mockResolvedValue(makeCert());
+
+      await expect(service.createCertificate(validPayload)).rejects.toThrow(
+        CertificateDuplicateError,
+      );
+    });
+  });
+
+  // ── updateCertificate ──────────────────────────────────────────────────────
+
+  describe('updateCertificate', () => {
+    it('should update mutable fields and return mapped result', async () => {
+      const cert = makeCert();
+      mocks.findById.mockResolvedValue(cert);
+      mocks.update.mockResolvedValue(makeCert({ owner: 'teamZ', description: 'Updated' }));
+      mocks.createAuditEntry.mockResolvedValue(undefined);
+
+      const result = await service.updateCertificate(
+        'cert-001',
+        { owner: 'teamZ', description: 'Updated' },
+        'admin',
+      );
+
+      expect(result.owner).toBe('teamZ');
+      expect(result.description).toBe('Updated');
+      expect(mocks.update).toHaveBeenCalledTimes(1);
+      expect(mocks.createAuditEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'UPDATE',
+          actor: 'admin',
+          result: 'SUCCESS',
+        }),
+      );
+    });
+
+    it('should record field-level changes in audit entry', async () => {
+      const cert = makeCert({ owner: 'teamA' });
+      mocks.findById.mockResolvedValue(cert);
+      mocks.update.mockResolvedValue(makeCert({ owner: 'teamB' }));
+      mocks.createAuditEntry.mockResolvedValue(undefined);
+
+      await service.updateCertificate('cert-001', { owner: 'teamB' }, 'admin');
+
+      const auditCall = mocks.createAuditEntry.mock.calls[0][0];
+      expect(auditCall.changes).toEqual({
+        owner: { old: 'teamA', new: 'teamB' },
+      });
+      expect(auditCall.detail).toContain('owner');
+    });
+
+    it('should throw CertificateNotFoundError for non-existent certificate', async () => {
+      mocks.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateCertificate('nonexistent', { owner: 'teamX' }),
+      ).rejects.toThrow(CertificateNotFoundError);
+    });
+
+    it('should throw CertificateImmutableFieldError when trying to update immutable fields', async () => {
+      const cert = makeCert();
+      mocks.findById.mockResolvedValue(cert);
+
+      await expect(
+        service.updateCertificate('cert-001', {
+          commonName: 'changed.example.com',
+        } as Record<string, unknown>),
+      ).rejects.toThrow(CertificateImmutableFieldError);
+    });
+
+    it('should throw CertificateValidationError for invalid environment on update', async () => {
+      const cert = makeCert();
+      mocks.findById.mockResolvedValue(cert);
+
+      await expect(
+        service.updateCertificate('cert-001', { environment: 'INVALID' }),
+      ).rejects.toThrow(CertificateValidationError);
+    });
+
+    it('should update tags correctly', async () => {
+      const cert = makeCert({ tags: { env: 'dev' } });
+      mocks.findById.mockResolvedValue(cert);
+      mocks.update.mockResolvedValue(makeCert({ tags: { env: 'prod', tier: 'critical' } }));
+      mocks.createAuditEntry.mockResolvedValue(undefined);
+
+      const result = await service.updateCertificate(
+        'cert-001',
+        { tags: { env: 'prod', tier: 'critical' } },
+      );
+
+      expect(result.tags).toEqual({ env: 'prod', tier: 'critical' });
+    });
+  });
+
+  // ── listCertificates (enhanced query params) ───────────────────────────────
+
+  describe('listCertificates (enhanced)', () => {
+    it('should use limit as alias for pageSize', async () => {
+      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+      const result = await service.listCertificates({ limit: '5' });
+
+      expect(result.pageSize).toBe(5);
+      const call = mocks.findMany.mock.calls[0];
+      expect(call[1].take).toBe(5);
+    });
+
+    it('should parse sort with - prefix as descending', async () => {
+      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+      await service.listCertificates({ sort: '-notAfter' });
+
+      const call = mocks.findMany.mock.calls[0];
+      expect(call[2]).toEqual({ sort: 'notAfter', sortDir: 'desc' });
+    });
+
+    it('should accept filter[status] bracket syntax', async () => {
+      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+      await service.listCertificates({ 'filter[status]': 'VALID,EXPIRED' });
+
+      const call = mocks.findMany.mock.calls[0];
+      expect(call[0].status).toEqual(['VALID', 'EXPIRED']);
+    });
+
+    it('should accept filter[environment] bracket syntax', async () => {
+      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+      await service.listCertificates({ 'filter[environment]': 'PRD' });
+
+      const call = mocks.findMany.mock.calls[0];
+      expect(call[0].environment).toEqual(['PRD']);
+    });
+
+    it('should prefer filter[status] over status param', async () => {
+      mocks.findMany.mockResolvedValue({ data: [], total: 0 });
+
+      await service.listCertificates({
+        status: 'REVOKED',
+        'filter[status]': 'VALID',
+      });
+
+      const call = mocks.findMany.mock.calls[0];
+      expect(call[0].status).toEqual(['VALID']);
     });
   });
 });

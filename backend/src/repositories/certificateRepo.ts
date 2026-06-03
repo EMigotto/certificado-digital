@@ -1,6 +1,49 @@
 import { Prisma, type PrismaClient, type Certificate } from '@prisma/client';
 import type { PaginationParams } from '../utils/pagination.js';
 
+// ─── Create / Update input types ────────────────────────────────────────────
+
+export interface CertificateCreateInput {
+  commonName: string;
+  subjectDn?: string | null;
+  issuerDn?: string | null;
+  sans?: string[];
+  serialNumber: string;
+  notBefore: Date;
+  notAfter: Date;
+  signatureAlgorithm: string;
+  keySize?: number | null;
+  fingerprintSha256: string;
+  fingerprintSha1?: string | null;
+  owner: string;
+  team?: string | null;
+  application: string;
+  environment: 'DEV' | 'HML' | 'PRD';
+  zone?: string | null;
+  caName: string;
+  caProvider?: string | null;
+  importSource: 'MANUAL' | 'CSV_IMPORT' | 'API_SYNC' | 'CERTIFICATE_FILE';
+  sourceFile?: string | null;
+  tags?: Record<string, string>;
+  customFields?: Record<string, string>;
+  description?: string | null;
+  pemData?: string | null;
+}
+
+/** Fields that may be updated via PATCH — immutable fields excluded */
+export interface CertificateUpdateInput {
+  owner?: string;
+  team?: string | null;
+  application?: string;
+  environment?: 'DEV' | 'HML' | 'PRD';
+  zone?: string | null;
+  caName?: string;
+  caProvider?: string | null;
+  tags?: Record<string, string>;
+  customFields?: Record<string, string>;
+  description?: string | null;
+}
+
 // ─── Filter types ────────────────────────────────────────────────────────────
 
 export interface CertificateFilters {
@@ -268,6 +311,72 @@ export class CertificateRepository {
   }
 
   /**
+   * Find a certificate by its SHA-256 fingerprint (unique column).
+   */
+  async findByFingerprint(fingerprintSha256: string): Promise<Certificate | null> {
+    return this.prisma.certificate.findUnique({ where: { fingerprintSha256 } });
+  }
+
+  /**
+   * Create a new certificate record.
+   */
+  async create(data: CertificateCreateInput): Promise<Certificate> {
+    return this.prisma.certificate.create({
+      data: {
+        commonName: data.commonName,
+        subjectDn: data.subjectDn ?? null,
+        issuerDn: data.issuerDn ?? null,
+        sans: data.sans ?? [],
+        serialNumber: data.serialNumber,
+        notBefore: data.notBefore,
+        notAfter: data.notAfter,
+        signatureAlgorithm: data.signatureAlgorithm,
+        keySize: data.keySize ?? null,
+        fingerprintSha256: data.fingerprintSha256,
+        fingerprintSha1: data.fingerprintSha1 ?? null,
+        owner: data.owner,
+        team: data.team ?? null,
+        application: data.application,
+        environment: data.environment,
+        zone: data.zone ?? null,
+        caName: data.caName,
+        caProvider: data.caProvider ?? null,
+        importSource: data.importSource,
+        sourceFile: data.sourceFile ?? null,
+        tags: (data.tags ?? {}) as Prisma.InputJsonValue,
+        customFields: (data.customFields ?? {}) as Prisma.InputJsonValue,
+        description: data.description ?? null,
+        pemData: data.pemData ?? null,
+      },
+    });
+  }
+
+  /**
+   * Partial update of certificate metadata with optimistic locking.
+   * Returns updated certificate or null if not found.
+   */
+  async update(id: string, data: CertificateUpdateInput): Promise<Certificate> {
+    const updateData: Prisma.CertificateUpdateInput = {};
+
+    if (data.owner !== undefined) updateData.owner = data.owner;
+    if (data.team !== undefined) updateData.team = data.team;
+    if (data.application !== undefined) updateData.application = data.application;
+    if (data.environment !== undefined) updateData.environment = data.environment;
+    if (data.zone !== undefined) updateData.zone = data.zone;
+    if (data.caName !== undefined) updateData.caName = data.caName;
+    if (data.caProvider !== undefined) updateData.caProvider = data.caProvider;
+    if (data.tags !== undefined) updateData.tags = data.tags as Prisma.InputJsonValue;
+    if (data.customFields !== undefined)
+      updateData.customFields = data.customFields as Prisma.InputJsonValue;
+    if (data.description !== undefined) updateData.description = data.description;
+
+    return this.prisma.certificate.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  /**
    * Create an audit entry.
    */
   async createAuditEntry(entry: {
@@ -277,8 +386,19 @@ export class CertificateRepository {
     actor: string;
     result: 'SUCCESS' | 'FAILURE';
     detail: string;
+    changes?: Record<string, { old: unknown; new: unknown }>;
   }): Promise<void> {
-    await this.prisma.auditEntry.create({ data: entry });
+    await this.prisma.auditEntry.create({
+      data: {
+        certificateId: entry.certificateId,
+        certCn: entry.certCn,
+        action: entry.action,
+        actor: entry.actor,
+        result: entry.result,
+        detail: entry.detail,
+        changes: entry.changes ? (entry.changes as Prisma.InputJsonValue) : undefined,
+      },
+    });
   }
 
   /**

@@ -8,6 +8,7 @@ const {
   mockFindUnique,
   mockCount,
   mockUpdate,
+  mockCreate,
   mockCreateAuditEntry,
   mockTransaction,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockFindUnique: vi.fn(),
   mockCount: vi.fn(),
   mockUpdate: vi.fn(),
+  mockCreate: vi.fn(),
   mockCreateAuditEntry: vi.fn(),
   mockTransaction: vi.fn(),
 }));
@@ -26,6 +28,7 @@ vi.mock('../prismaClient.js', () => ({
       findUnique: mockFindUnique,
       count: mockCount,
       update: mockUpdate,
+      create: mockCreate,
     },
     auditEntry: {
       create: mockCreateAuditEntry,
@@ -192,7 +195,7 @@ describe('Certificate Routes', () => {
 
       const response = await server.inject({
         method: 'GET',
-        url: '/api/certificates/nonexistent-id',
+        url: '/api/certificates/00000000-0000-0000-0000-000000000000',
       });
 
       expect(response.statusCode).toBe(404);
@@ -249,7 +252,7 @@ describe('Certificate Routes', () => {
 
       const response = await server.inject({
         method: 'GET',
-        url: '/api/certificates/nonexistent-id/export/pem',
+        url: '/api/certificates/00000000-0000-0000-0000-000000000000/export/pem',
       });
 
       expect(response.statusCode).toBe(404);
@@ -282,10 +285,199 @@ describe('Certificate Routes', () => {
 
       const response = await server.inject({
         method: 'DELETE',
-        url: '/api/certificates/nonexistent-id',
+        url: '/api/certificates/00000000-0000-0000-0000-000000000000',
       });
 
       expect(response.statusCode).toBe(404);
+    });
+  });
+
+  // ── GET /api/certificates (enhanced query params) ──────────────────────────
+
+  describe('GET /api/certificates (enhanced query params)', () => {
+    it('should accept limit as alias for pageSize', async () => {
+      mockTransaction.mockResolvedValue([[], 0]);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/certificates?limit=5',
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.pageSize).toBe(5);
+    });
+
+    it('should accept filter[status] bracket syntax', async () => {
+      mockTransaction.mockResolvedValue([[], 0]);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/certificates?filter[status]=VALID,EXPIRED',
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept filter[environment] bracket syntax', async () => {
+      mockTransaction.mockResolvedValue([[], 0]);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/certificates?filter[environment]=PRD',
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('should accept sort with - prefix for descending', async () => {
+      mockTransaction.mockResolvedValue([[], 0]);
+
+      const response = await server.inject({
+        method: 'GET',
+        url: '/api/certificates?sort=-notAfter',
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+  });
+
+  // ── POST /api/certificates ────────────────────────────────────────────────
+
+  describe('POST /api/certificates', () => {
+    const validBody = {
+      commonName: 'new-cert.example.com',
+      serialNumber: 'FF:EE:DD:CC',
+      notBefore: PAST.toISOString(),
+      notAfter: FUTURE.toISOString(),
+      signatureAlgorithm: 'SHA256withRSA',
+      fingerprintSha256: 'new:unique:fingerprint',
+      owner: 'teamB',
+      application: 'web-app',
+      environment: 'DEV',
+    };
+
+    it('should create a new certificate and return 201', async () => {
+      // findUnique for fingerprint check → null (no duplicate)
+      mockFindUnique.mockResolvedValue(null);
+      // create returns the new cert
+      const createdCert = makePrismaCert({
+        id: '660e8400-e29b-41d4-a716-446655440001',
+        commonName: 'new-cert.example.com',
+        serialNumber: 'FF:EE:DD:CC',
+        fingerprintSha256: 'new:unique:fingerprint',
+        owner: 'teamB',
+        application: 'web-app',
+        environment: 'DEV',
+        importSource: 'API_SYNC',
+      });
+      mockCreate.mockResolvedValue(createdCert);
+      mockCreateAuditEntry.mockResolvedValue({});
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/certificates',
+        payload: validBody,
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.payload);
+      expect(body.commonName).toBe('new-cert.example.com');
+      expect(body.importSource).toBe('API_SYNC');
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockCreateAuditEntry).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return 400 when required fields are missing', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/certificates',
+        payload: { description: 'incomplete cert' },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('should return 400 for invalid environment', async () => {
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/certificates',
+        payload: { ...validBody, environment: 'INVALID' },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('should return 409 for duplicate fingerprint', async () => {
+      // findUnique for fingerprint check → existing cert found
+      mockFindUnique.mockResolvedValue(makePrismaCert());
+
+      const response = await server.inject({
+        method: 'POST',
+        url: '/api/certificates',
+        payload: { ...validBody, fingerprintSha256: 'ab:cd:ef' },
+      });
+
+      expect(response.statusCode).toBe(409);
+      const body = JSON.parse(response.payload);
+      expect(body.error).toBe('Conflict');
+    });
+  });
+
+  // ── PATCH /api/certificates/:id ───────────────────────────────────────────
+
+  describe('PATCH /api/certificates/:id', () => {
+    it('should update certificate metadata and return 200', async () => {
+      const cert = makePrismaCert();
+      // First findUnique → existing cert
+      mockFindUnique.mockResolvedValue(cert);
+      // update returns updated cert
+      const updatedCert = makePrismaCert({ owner: 'teamC', description: 'Updated' });
+      mockUpdate.mockResolvedValue(updatedCert);
+      mockCreateAuditEntry.mockResolvedValue({});
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: '/api/certificates/550e8400-e29b-41d4-a716-446655440000',
+        payload: { owner: 'teamC', description: 'Updated' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.owner).toBe('teamC');
+      expect(body.description).toBe('Updated');
+    });
+
+    it('should return 404 for non-existent certificate', async () => {
+      mockFindUnique.mockResolvedValue(null);
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: '/api/certificates/550e8400-e29b-41d4-a716-446655440000',
+        payload: { owner: 'teamC' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      const body = JSON.parse(response.payload);
+      expect(body.error).toBe('Not Found');
+    });
+
+    it('should update tags as object', async () => {
+      const cert = makePrismaCert();
+      mockFindUnique.mockResolvedValue(cert);
+      const updatedCert = makePrismaCert({ tags: { env: 'staging', team: 'backend' } });
+      mockUpdate.mockResolvedValue(updatedCert);
+      mockCreateAuditEntry.mockResolvedValue({});
+
+      const response = await server.inject({
+        method: 'PATCH',
+        url: '/api/certificates/550e8400-e29b-41d4-a716-446655440000',
+        payload: { tags: { env: 'staging', team: 'backend' } },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body.tags).toEqual({ env: 'staging', team: 'backend' });
     });
   });
 
