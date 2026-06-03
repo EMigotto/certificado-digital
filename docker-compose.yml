@@ -11,6 +11,8 @@ services:
       POSTGRES_USER: certdigital
       POSTGRES_PASSWORD: certdigital
       POSTGRES_DB: certdigital
+      # C5: Secret for encrypting private keys at rest (min 32 chars, change in production)
+      PRIVATE_KEY_ENCRYPTION_SECRET: dev-only-private-key-secret-that-must-be-changed-in-production
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

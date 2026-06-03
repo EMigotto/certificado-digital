@@ -26,6 +26,18 @@ const envSchema = z.object({
     .string()
     .default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
 
+  /**
+   * Dedicated secret for encrypting stored private keys at rest (C5).
+   * Must be at least 32 characters. Kept separate from ENCRYPTION_KEY
+   * for defense-in-depth — allows independent rotation and limits
+   * blast radius if one secret is compromised.
+   * MUST be changed in production.
+   */
+  PRIVATE_KEY_ENCRYPTION_SECRET: z
+    .string()
+    .min(32, 'PRIVATE_KEY_ENCRYPTION_SECRET must be at least 32 characters')
+    .default('dev-only-private-key-secret-that-must-be-changed-in-production'),
+
   // ── SMTP / Email notification settings ────────────────────────────────────
 
   /** SMTP server hostname */

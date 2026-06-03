@@ -4,7 +4,7 @@
  * AuditEntry records are immutable — once created they cannot be modified or deleted.
  */
 
-/** Audit log action types (includes lifecycle events) */
+/** Audit log action types (includes lifecycle events and key operations) */
 export type AuditAction =
   | 'CREATE'
   | 'UPDATE'
@@ -15,7 +15,11 @@ export type AuditAction =
   | 'ISSUE'
   | 'RENEW'
   | 'KEY_ROTATED'
-  | 'NOTIFICATION_SENT';
+  | 'NOTIFICATION_SENT'
+  | 'KEY_STORE'
+  | 'KEY_RETRIEVE'
+  | 'KEY_ROTATE'
+  | 'KEY_DELETE';
 
 /** Outcome of the audited operation */
 export type AuditResult = 'SUCCESS' | 'FAILURE';

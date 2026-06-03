@@ -54,12 +54,7 @@ export type {
 } from './filters.js';
 
 // API envelope types
-export type {
-  PaginatedResponse,
-  ApiError,
-  ApiSuccess,
-  BulkOperationResult,
-} from './api.js';
+export type { PaginatedResponse, ApiError, ApiSuccess, BulkOperationResult } from './api.js';
 
 // Expiration alert types
 export type {
@@ -101,11 +96,7 @@ export type {
 } from './token.js';
 
 // Zone types (C7)
-export type {
-  Zone,
-  ZoneCreate,
-  ZoneUpdate,
-} from './zone.js';
+export type { Zone, ZoneCreate, ZoneUpdate } from './zone.js';
 
 // Dashboard types
 export type {
@@ -117,3 +108,6 @@ export type {
   CriticalAlert,
   DashboardSnapshot,
 } from './dashboard.js';
+
+// Private key storage types (C5)
+export type { KeyStatus, KeyAuditAction, PrivateKeyMetadata } from './key.js';

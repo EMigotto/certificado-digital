@@ -72,6 +72,10 @@ import type {
   AlertSeverity,
   CriticalAlert,
   DashboardSnapshot,
+  // Private key storage types (C5)
+  KeyStatus,
+  KeyAuditAction,
+  PrivateKeyMetadata,
 } from '../index.js';
 
 /**
@@ -281,7 +285,7 @@ describe('shared types', () => {
       expectTypeOf<AuditEntry>().toHaveProperty('timestamp');
     });
 
-    it('AuditAction should include all expected values including lifecycle actions', () => {
+    it('AuditAction should include all expected values including lifecycle and key actions', () => {
       expectTypeOf<'CREATE'>().toMatchTypeOf<AuditAction>();
       expectTypeOf<'UPDATE'>().toMatchTypeOf<AuditAction>();
       expectTypeOf<'DELETE'>().toMatchTypeOf<AuditAction>();
@@ -292,6 +296,11 @@ describe('shared types', () => {
       expectTypeOf<'RENEW'>().toMatchTypeOf<AuditAction>();
       expectTypeOf<'KEY_ROTATED'>().toMatchTypeOf<AuditAction>();
       expectTypeOf<'NOTIFICATION_SENT'>().toMatchTypeOf<AuditAction>();
+      // C5 key storage audit actions
+      expectTypeOf<'KEY_STORE'>().toMatchTypeOf<AuditAction>();
+      expectTypeOf<'KEY_RETRIEVE'>().toMatchTypeOf<AuditAction>();
+      expectTypeOf<'KEY_ROTATE'>().toMatchTypeOf<AuditAction>();
+      expectTypeOf<'KEY_DELETE'>().toMatchTypeOf<AuditAction>();
     });
 
     it('AuditResult should be SUCCESS or FAILURE', () => {
@@ -710,6 +719,44 @@ describe('shared types', () => {
 
     it('DashboardSnapshot.alerts should be CriticalAlert[]', () => {
       expectTypeOf<DashboardSnapshot['alerts']>().toEqualTypeOf<CriticalAlert[]>();
+    });
+  });
+
+  // ─── Private Key Storage Types (C5) ──────────────────────────────────────
+
+  describe('private key storage types (C5)', () => {
+    it('KeyStatus should include all lifecycle values', () => {
+      expectTypeOf<'ACTIVE'>().toMatchTypeOf<KeyStatus>();
+      expectTypeOf<'ROTATED'>().toMatchTypeOf<KeyStatus>();
+      expectTypeOf<'DELETED'>().toMatchTypeOf<KeyStatus>();
+    });
+
+    it('KeyAuditAction should include all key operation values', () => {
+      expectTypeOf<'KEY_STORE'>().toMatchTypeOf<KeyAuditAction>();
+      expectTypeOf<'KEY_RETRIEVE'>().toMatchTypeOf<KeyAuditAction>();
+      expectTypeOf<'KEY_ROTATE'>().toMatchTypeOf<KeyAuditAction>();
+      expectTypeOf<'KEY_DELETE'>().toMatchTypeOf<KeyAuditAction>();
+    });
+
+    it('PrivateKeyMetadata should have expected shape', () => {
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('id');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('certificateId');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('algorithm');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('fingerprint');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('status');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('encAlgorithm');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('previousKeyId');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('createdAt');
+      expectTypeOf<PrivateKeyMetadata>().toHaveProperty('updatedAt');
+    });
+
+    it('PrivateKeyMetadata.status should be KeyStatus', () => {
+      expectTypeOf<PrivateKeyMetadata['status']>().toEqualTypeOf<KeyStatus>();
+    });
+
+    it('PrivateKeyMetadata.previousKeyId should be nullable', () => {
+      expectTypeOf<null>().toMatchTypeOf<PrivateKeyMetadata['previousKeyId']>();
+      expectTypeOf<string>().toMatchTypeOf<PrivateKeyMetadata['previousKeyId']>();
     });
   });
 });
