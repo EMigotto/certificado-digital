@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trilha de Auditoria - Certificado Digital</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #fff;
+            border-right: 1px solid #e0e6ed;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #666;
+            margin-top: 20px;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar h3:first-child {
+            margin-top: 0;
+        }
+
+        .filter-group {
+            margin-bottom: 16px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #444;
+        }
+
+        .filter-group input[type="text"],
+        .filter-group input[type="date"],
+        .filter-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .filter-group input[type="text"]:focus,
+        .filter-group input[type="date"]:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            background: #fff;
+            transition: all 0.2s;
+        }
+
+        button.primary {
+            background: #0066cc;
+            color: #fff;
+            border-color: #0066cc;
+        }
+
+        button.primary:hover {
+            background: #0052a3;
+            border-color: #0052a3;
+        }
+
+        button:hover:not(.primary) {
+            border-color: #999;
+            background: #f9f9f9;
+        }
+
+        /* Main content */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #fff;
+            border-bottom: 1px solid #e0e6ed;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #000;
+        }
+
+        .header p {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .toolbar {
+            background: #fff;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e0e6ed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 32px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .search-box::before {
+            content: '🔍';
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 8px;
+        }
+
+        .toolbar-right button {
+            padding: 8px 16px;
+            white-space: nowrap;
+        }
+
+        /* Table */
+        .table-container {
+            flex: 1;
+            overflow: auto;
+            background: #fff;
+            margin: 20px;
+            border-radius: 6px;
+            border: 1px solid #e0e6ed;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f9fafb;
+            border-bottom: 1px solid #e0e6ed;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #444;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            border-right: 1px solid #e0e6ed;
+        }
+
+        th:last-child {
+            border-right: none;
+        }
+
+        th:hover {
+            background: #eef2f7;
+        }
+
+        th.sorted {
+            background: #e8eef7;
+        }
+
+        th.sorted::after {
+            content: ' ↓';
+            font-size: 10px;
+        }
+
+        th.sorted.asc::after {
+            content: ' ↑';
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            border-right: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+
+        td:last-child {
+            border-right: none;
+        }
+
+        tbody tr:hover {
+            background: #fafbfc;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .timestamp {
+            color: #666;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .user-email {
+            font-weight: 500;
+            color: #0066cc;
+        }
+
+        .action-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-weight: 500;
+            font-size: 11px;
+            white-space: nowrap;
+            background: #e8f0fe;
+            color: #1a73e8;
+        }
+
+        .action-badge.approved {
+            background: #e6f4ea;
+            color: #0d652d;
+        }
+
+        .action-badge.issued {
+            background: #fce8e6;
+            color: #c5221f;
+        }
+
+        .action-badge.revoked {
+            background: #f3e5f5;
+            color: #6a1b9a;
+        }
+
+        .action-badge.downloaded {
+            background: #fff3cd;
+            color: #664d03;
+        }
+
+        .resource-name {
+            color: #444;
+            font-weight: 500;
+        }
+
+        .resource-type {
+            color: #999;
+            font-size: 11px;
+            display: block;
+            margin-top: 2px;
+        }
+
+        .status-icon {
+            font-size: 18px;
+            text-align: center;
+            width: 24px;
+            display: inline-block;
+        }
+
+        .status-success {
+            color: #0d652d;
+        }
+
+        .status-failure {
+            color: #c5221f;
+        }
+
+        .details-link {
+            color: #0066cc;
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+
+        .details-link:hover {
+            background: #f0f4ff;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            background: #f9fafb;
+            border-top: 1px solid #e0e6ed;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .pagination a,
+        .pagination button {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: #0066cc;
+            font-weight: 500;
+        }
+
+        .pagination a:hover,
+        .pagination button:hover {
+            border-color: #0066cc;
+            background: #f0f4ff;
+        }
+
+        .pagination .current {
+            background: #0066cc;
+            color: #fff;
+            border-color: #0066cc;
+            cursor: default;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e0e6ed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: auto;
+            color: #666;
+        }
+
+        .modal-close:hover {
+            color: #000;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .detail-row {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #444;
+            font-size: 13px;
+        }
+
+        .detail-value {
+            color: #333;
+            font-size: 13px;
+            word-break: break-all;
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #f9fafb;
+            padding: 8px;
+            border-radius: 3px;
+        }
+
+        .detail-value.json {
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid #e0e6ed;
+            background: #f9fafb;
+            text-align: right;
+        }
+
+        .modal-footer button {
+            padding: 8px 20px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+            color: #999;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #666;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar com Filtros -->
+        <aside class="sidebar">
+            <h3>Filtros</h3>
+
+            <div class="filter-group">
+                <label for="search">Buscar por email ou recurso</label>
+                <input type="text" id="search" placeholder="john@example.com">
+            </div>
+
+            <h3>Período</h3>
+            <div class="filter-group">
+                <label for="from_date">Data inicial</label>
+                <input type="date" id="from_date">
+            </div>
+            <div class="filter-group">
+                <label for="to_date">Data final</label>
+                <input type="date" id="to_date">
+            </div>
+
+            <h3>Usuário</h3>
+            <div class="filter-group">
+                <select id="user_filter">
+                    <option value="">Todos</option>
+                    <option value="user_1">John Doe (john@example.com)</option>
+                    <option value="user_2">Jane Smith (jane@example.com)</option>
+                    <option value="user_3">Admin User (admin@example.com)</option>
+                </select>
+            </div>
+
+            <h3>Tipo de Ação</h3>
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" value="login"> Login
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="certificate_approved"> Aprovação
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="certificate_issued"> Emissão
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="certificate_renewed"> Renovação
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="certificate_revoked"> Revogação
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="certificate_downloaded"> Download
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="policy_modified"> Alteração de Política
+                </label>
+            </div>
+
+            <h3>Resultado</h3>
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" value="success"> Sucesso
+                </label>
+                <label class="checkbox-item">
+                    <input type="checkbox" value="failure"> Falha
+                </label>
+            </div>
+
+            <div class="button-group">
+                <button onclick="resetFilters()">Limpar</button>
+                <button class="primary" onclick="applyFilters()">Aplicar</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="main">
+            <!-- Header -->
+            <div class="header">
+                <h1>Trilha de Auditoria</h1>
+                <p>Visualize e monitore todas as ações do sistema para conformidade regulatória</p>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="search-box">
+                    <input type="text" placeholder="Buscar evento...">
+                </div>
+                <div class="toolbar-right">
+                    <button onclick="exportCSV()">Exportar CSV</button>
+                    <button onclick="exportJSON()">Exportar JSON</button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('timestamp')">Timestamp</th>
+                            <th onclick="sortTable('user_email')">Usuário</th>
+                            <th onclick="sortTable('action')">Ação</th>
+                            <th onclick="sortTable('resource')">Recurso</th>
+                            <th onclick="sortTable('status')">Status</th>
+                            <th>Detalhes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Linha 1 -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:32:18</td>
+                            <td class="user-email">john.doe@example.com</td>
+                            <td><span class="action-badge">Login</span></td>
+                            <td>
+                                <div class="resource-name">Sessão</div>
+                                <div class="resource-type">Autenticação</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-success" title="Sucesso">✓</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail1')">Ver</button>
+                            </td>
+                        </tr>
+
+                        <!-- Linha 2 -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:35:42</td>
+                            <td class="user-email">jane.smith@example.com</td>
+                            <td><span class="action-badge approved">Aprovação</span></td>
+                            <td>
+                                <div class="resource-name">Requisição #2456</div>
+                                <div class="resource-type">Certificado</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-success" title="Sucesso">✓</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail2')">Ver</button>
+                            </td>
+                        </tr>
+
+                        <!-- Linha 3 -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:36:01</td>
+                            <td class="user-email">system@example.com</td>
+                            <td><span class="action-badge issued">Emissão</span></td>
+                            <td>
+                                <div class="resource-name">api.example.com</div>
+                                <div class="resource-type">Certificado</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-success" title="Sucesso">✓</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail3')">Ver</button>
+                            </td>
+                        </tr>
+
+                        <!-- Linha 4 -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:38:15</td>
+                            <td class="user-email">john.doe@example.com</td>
+                            <td><span class="action-badge downloaded">Download</span></td>
+                            <td>
+                                <div class="resource-name">api.example.com</div>
+                                <div class="resource-type">Certificado</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-success" title="Sucesso">✓</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail4')">Ver</button>
+                            </td>
+                        </tr>
+
+                        <!-- Linha 5 - Falha -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:40:22</td>
+                            <td class="user-email">failed.user@example.com</td>
+                            <td><span class="action-badge">Login</span></td>
+                            <td>
+                                <div class="resource-name">Sessão</div>
+                                <div class="resource-type">Autenticação</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-failure" title="Falha">✕</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail5')">Ver</button>
+                            </td>
+                        </tr>
+
+                        <!-- Linha 6 -->
+                        <tr>
+                            <td class="timestamp">2026-06-10 14:42:50</td>
+                            <td class="user-email">admin@example.com</td>
+                            <td><span class="action-badge revoked">Revogação</span></td>
+                            <td>
+                                <div class="resource-name">old-api.example.com</div>
+                                <div class="resource-type">Certificado</div>
+                            </td>
+                            <td>
+                                <span class="status-icon status-success" title="Sucesso">✓</span>
+                            </td>
+                            <td>
+                                <button class="details-link" onclick="openModal('detail6')">Ver</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <button onclick="previousPage()">← Anterior</button>
+                <a href="#" class="current">1</a>
+                <a href="#">2</a>
+                <a href="#">3</a>
+                <button onclick="nextPage()">Próximo →</button>
+                <span style="margin-left: 16px;">Mostrando 1-6 de 247 eventos</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modais de Detalhes -->
+    <div id="detail1" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento</h2>
+                <button class="modal-close" onclick="closeModal('detail1')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026338_user_001</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:32:18.123Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário ID:</div>
+                    <div class="detail-value">user_001</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Email:</div>
+                    <div class="detail-value">john.doe@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">login</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div class="detail-value">success</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">IP Address:</div>
+                    <div class="detail-value">192.168.1.105</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">User Agent:</div>
+                    <div class="detail-value">Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Request ID:</div>
+                    <div class="detail-value">req_a1b2c3d4e5f6</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "login_method": "form",
+  "mfa_used": true,
+  "session_created": true
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail1')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail2" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento - Aprovação</h2>
+                <button class="modal-close" onclick="closeModal('detail2')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026542_user_002</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:35:42.456Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário (Aprovador):</div>
+                    <div class="detail-value">jane.smith@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">certificate_approved</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Tipo de Recurso:</div>
+                    <div class="detail-value">certificate</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">ID do Recurso:</div>
+                    <div class="detail-value">cert_req_2456</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Nome do Recurso:</div>
+                    <div class="detail-value">Requisição #2456</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div class="detail-value">success</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "justification": "CSR válido, domínio verificado",
+  "request_id": "cert_req_2456",
+  "requester": "john.doe@example.com",
+  "approval_timestamp": "2026-06-10T14:35:42Z"
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail2')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail3" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento - Emissão</h2>
+                <button class="modal-close" onclick="closeModal('detail3')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026561_system</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:36:01.789Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário:</div>
+                    <div class="detail-value">system@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">certificate_issued</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Tipo de Recurso:</div>
+                    <div class="detail-value">certificate</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Nome do Recurso:</div>
+                    <div class="detail-value">api.example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div class="detail-value">success</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "serial_number": "0x123456789ABCDEF",
+  "fingerprint": "sha256:a1b2c3d4e5f6...",
+  "validity_start": "2026-06-10",
+  "validity_end": "2027-06-10",
+  "issuer": "Internal CA",
+  "subject": "CN=api.example.com"
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail3')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail4" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento - Download</h2>
+                <button class="modal-close" onclick="closeModal('detail4')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026695_user_001</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:38:15.321Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário:</div>
+                    <div class="detail-value">john.doe@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">certificate_downloaded</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Recurso:</div>
+                    <div class="detail-value">api.example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">IP Address:</div>
+                    <div class="detail-value">192.168.1.105</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "file_format": "pkcs12",
+  "file_name": "api.example.com.p12",
+  "reason": "deployment",
+  "downloaded_count": 1
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail4')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail5" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento - Login Falhado</h2>
+                <button class="modal-close" onclick="closeModal('detail5')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026822_user_004</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:40:22.654Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário:</div>
+                    <div class="detail-value">failed.user@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">login</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div class="detail-value">failure</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">IP Address:</div>
+                    <div class="detail-value">203.0.113.42</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "error": "invalid_credentials",
+  "attempt_number": 3,
+  "account_locked": false,
+  "reason": "Senha incorreta"
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail5')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail6" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes do Evento - Revogação</h2>
+                <button class="modal-close" onclick="closeModal('detail6')">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-row">
+                    <div class="detail-label">ID do Evento:</div>
+                    <div class="detail-value">evt_1718026970_admin</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Timestamp:</div>
+                    <div class="detail-value">2026-06-10T14:42:50.987Z</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Usuário:</div>
+                    <div class="detail-value">admin@example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Ação:</div>
+                    <div class="detail-value">certificate_revoked</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Recurso:</div>
+                    <div class="detail-value">old-api.example.com</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Status:</div>
+                    <div class="detail-value">success</div>
+                </div>
+                <div class="detail-row">
+                    <div class="detail-label">Details (JSON):</div>
+                    <div class="detail-value json">{
+  "revocation_reason": "superseded",
+  "replacement_cert": "api.example.com",
+  "crl_updated": true,
+  "ocsp_updated": true,
+  "comment": "Substituído por novo certificado"
+}</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="primary" onclick="closeModal('detail6')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function applyFilters() {
+            alert('Filtros aplicados: Este é um protótipo estático. Filtros seriam enviados à API.');
+        }
+
+        function resetFilters() {
+            document.querySelectorAll('input[type="date"], select, input[type="text"]').forEach(el => {
+                el.value = '';
+            });
+            document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+                el.checked = false;
+            });
+        }
+
+        function sortTable(column) {
+            alert(`Ordenação por ${column} (protótipo estático)`);
+        }
+
+        function previousPage() {
+            alert('Página anterior (protótipo)');
+        }
+
+        function nextPage() {
+            alert('Próxima página (protótipo)');
+        }
+
+        function exportCSV() {
+            alert('Exportando como CSV... Arquivo seria gerado com eventos filtrados.');
+        }
+
+        function exportJSON() {
+            alert('Exportando como JSON... Arquivo seria gerado com eventos filtrados.');
+        }
+
+        // Fechar modal ao clicar fora
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.classList.remove('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
