@@ -393,3 +393,45 @@ model ExpirationSnapshot {
 
   @@map("expiration_snapshots")
 }
+
+// ---------------------------------------------------------------------------
+// AuditEvent — trilha de auditoria expandida (C6)
+//
+// Registros imutáveis que cobrem todos os recursos do sistema.
+// Constraints de imutabilidade (no UPDATE/DELETE) são enforced via
+// PostgreSQL RULEs na migration SQL.
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id String @id @default(uuid())
+
+  // ── Ação e recurso ────────────────────────────────────────────────────────
+  action       String @db.VarChar(50)
+  resourceType String @map("resource_type") @db.VarChar(50)
+  resourceId   String @map("resource_id") @db.VarChar(255)
+
+  // ── Identificação do ator ─────────────────────────────────────────────────
+  userId    String  @map("user_id") @db.VarChar(255)
+  userAgent String? @map("user_agent") @db.Text
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+
+  // ── Timestamp imutável ────────────────────────────────────────────────────
+  timestamp DateTime @default(now()) @db.Timestamptz()
+
+  // ── Resultado e detalhes ──────────────────────────────────────────────────
+  status  String  @default("SUCCESS") @db.VarChar(10)
+  detail  String? @db.Text
+  metadata Json?  @db.JsonB
+  changes Json?  @db.JsonB
+
+  // ── Correlação e performance ──────────────────────────────────────────────
+  correlationId String? @map("correlation_id") @db.Uuid
+  durationMs    Int?    @map("duration_ms")
+
+  // ── Índices para performance < 1s em 100K+ registros ─────────────────────
+  @@index([timestamp], name: "idx_audit_event_timestamp")
+  @@index([userId], name: "idx_audit_event_user_id")
+  @@index([resourceType, resourceId], name: "idx_audit_event_resource")
+  @@index([action, status], name: "idx_audit_event_action_status")
+  @@map("audit_events")
+}

@@ -1,4 +1,4 @@
-import { describe, it, expectTypeOf } from 'vitest';
+import { describe, it, expectTypeOf, expect } from 'vitest';
 import type {
   Certificate,
   CertificateCreate,
@@ -76,7 +76,25 @@ import type {
   KeyStatus,
   KeyAuditAction,
   PrivateKeyMetadata,
+  // C6 — Trilha de Auditoria Expandida
+  AuditEventAction,
+  AuditResourceType,
+  AuditEventStatus,
+  AuditEvent,
+  AuditEventCreate,
+  AuditEventFilters,
+  AuditEventSortField,
+  AuditExportParams,
+  AuditExportFormat,
+  AuditEventColumn,
+  AuditReportParams,
+  AuditReportType,
+  AuditReportGroupBy,
+  AuditConfig,
+  AuditReportSummary,
 } from '../index.js';
+
+import { AUDIT_CONFIG_DEFAULTS } from '../index.js';
 
 /**
  * Compile-time type tests for the shared types package.
@@ -757,6 +775,286 @@ describe('shared types', () => {
     it('PrivateKeyMetadata.previousKeyId should be nullable', () => {
       expectTypeOf<null>().toMatchTypeOf<PrivateKeyMetadata['previousKeyId']>();
       expectTypeOf<string>().toMatchTypeOf<PrivateKeyMetadata['previousKeyId']>();
+    });
+  });
+
+  // ─── C6 — Trilha de Auditoria Expandida ──────────────────────────────────
+
+  describe('audit event types (C6)', () => {
+    describe('AuditEventAction', () => {
+      it('deve incluir todas as ações de certificado', () => {
+        expectTypeOf<'CERT_CREATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_UPDATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_DELETE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_IMPORT'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_EXPORT'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_REVOKE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_RENEW'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CERT_ISSUE'>().toMatchTypeOf<AuditEventAction>();
+      });
+
+      it('deve incluir todas as ações de chaves privadas', () => {
+        expectTypeOf<'KEY_STORE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'KEY_RETRIEVE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'KEY_ROTATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'KEY_DELETE'>().toMatchTypeOf<AuditEventAction>();
+      });
+
+      it('deve incluir ações de policies, tokens e zones', () => {
+        expectTypeOf<'POLICY_CREATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'POLICY_UPDATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'POLICY_DELETE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'TOKEN_CREATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'TOKEN_REVOKE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'ZONE_CREATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'ZONE_UPDATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'ZONE_DELETE'>().toMatchTypeOf<AuditEventAction>();
+      });
+
+      it('deve incluir ações de alerta, notificação, config e auth', () => {
+        expectTypeOf<'ALERT_CREATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'ALERT_ACKNOWLEDGE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'NOTIFICATION_SENT'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'CONFIG_UPDATE'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'AUTH_LOGIN'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'AUTH_LOGOUT'>().toMatchTypeOf<AuditEventAction>();
+        expectTypeOf<'AUTH_FAILED'>().toMatchTypeOf<AuditEventAction>();
+      });
+    });
+
+    describe('AuditResourceType', () => {
+      it('deve incluir todos os tipos de recurso', () => {
+        expectTypeOf<'CERTIFICATE'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'PRIVATE_KEY'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'POLICY'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'TOKEN'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'ZONE'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'ALERT'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'NOTIFICATION'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'CONFIG'>().toMatchTypeOf<AuditResourceType>();
+        expectTypeOf<'USER'>().toMatchTypeOf<AuditResourceType>();
+      });
+    });
+
+    describe('AuditEventStatus', () => {
+      it('deve ser SUCCESS ou FAILURE', () => {
+        expectTypeOf<'SUCCESS'>().toMatchTypeOf<AuditEventStatus>();
+        expectTypeOf<'FAILURE'>().toMatchTypeOf<AuditEventStatus>();
+      });
+    });
+
+    describe('AuditEvent', () => {
+      it('deve ter todos os 14 campos do modelo', () => {
+        expectTypeOf<AuditEvent>().toHaveProperty('id');
+        expectTypeOf<AuditEvent>().toHaveProperty('action');
+        expectTypeOf<AuditEvent>().toHaveProperty('resourceType');
+        expectTypeOf<AuditEvent>().toHaveProperty('resourceId');
+        expectTypeOf<AuditEvent>().toHaveProperty('userId');
+        expectTypeOf<AuditEvent>().toHaveProperty('userAgent');
+        expectTypeOf<AuditEvent>().toHaveProperty('ipAddress');
+        expectTypeOf<AuditEvent>().toHaveProperty('timestamp');
+        expectTypeOf<AuditEvent>().toHaveProperty('status');
+        expectTypeOf<AuditEvent>().toHaveProperty('detail');
+        expectTypeOf<AuditEvent>().toHaveProperty('metadata');
+        expectTypeOf<AuditEvent>().toHaveProperty('changes');
+        expectTypeOf<AuditEvent>().toHaveProperty('correlationId');
+        expectTypeOf<AuditEvent>().toHaveProperty('durationMs');
+      });
+
+      it('action deve ser AuditEventAction', () => {
+        expectTypeOf<AuditEvent['action']>().toEqualTypeOf<AuditEventAction>();
+      });
+
+      it('resourceType deve ser AuditResourceType', () => {
+        expectTypeOf<AuditEvent['resourceType']>().toEqualTypeOf<AuditResourceType>();
+      });
+
+      it('status deve ser AuditEventStatus', () => {
+        expectTypeOf<AuditEvent['status']>().toEqualTypeOf<AuditEventStatus>();
+      });
+
+      it('campos opcionais devem ser nullable', () => {
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['userAgent']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['ipAddress']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['detail']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['metadata']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['changes']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['correlationId']>();
+        expectTypeOf<null>().toMatchTypeOf<AuditEvent['durationMs']>();
+      });
+    });
+
+    describe('AuditEventCreate', () => {
+      it('deve omitir id e timestamp', () => {
+        expectTypeOf<AuditEventCreate>().not.toHaveProperty('id');
+        expectTypeOf<AuditEventCreate>().not.toHaveProperty('timestamp');
+        expectTypeOf<AuditEventCreate>().toHaveProperty('action');
+        expectTypeOf<AuditEventCreate>().toHaveProperty('resourceType');
+        expectTypeOf<AuditEventCreate>().toHaveProperty('resourceId');
+        expectTypeOf<AuditEventCreate>().toHaveProperty('userId');
+      });
+    });
+
+    describe('AuditEventFilters', () => {
+      it('deve ter paginação obrigatória', () => {
+        expectTypeOf<AuditEventFilters>().toHaveProperty('page');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('pageSize');
+      });
+
+      it('deve ter filtros opcionais', () => {
+        expectTypeOf<AuditEventFilters>().toHaveProperty('action');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('resourceType');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('resourceId');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('userId');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('status');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('dateFrom');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('dateTo');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('correlationId');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('search');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('sortBy');
+        expectTypeOf<AuditEventFilters>().toHaveProperty('sortDirection');
+      });
+
+      it('page e pageSize devem ser number', () => {
+        expectTypeOf<AuditEventFilters['page']>().toEqualTypeOf<number>();
+        expectTypeOf<AuditEventFilters['pageSize']>().toEqualTypeOf<number>();
+      });
+    });
+
+    describe('AuditEventSortField', () => {
+      it('deve incluir campos de ordenação válidos', () => {
+        expectTypeOf<'timestamp'>().toMatchTypeOf<AuditEventSortField>();
+        expectTypeOf<'action'>().toMatchTypeOf<AuditEventSortField>();
+        expectTypeOf<'resourceType'>().toMatchTypeOf<AuditEventSortField>();
+        expectTypeOf<'userId'>().toMatchTypeOf<AuditEventSortField>();
+        expectTypeOf<'status'>().toMatchTypeOf<AuditEventSortField>();
+      });
+    });
+
+    describe('AuditExportParams', () => {
+      it('deve ter filtros e formato', () => {
+        expectTypeOf<AuditExportParams>().toHaveProperty('filters');
+        expectTypeOf<AuditExportParams>().toHaveProperty('format');
+      });
+
+      it('deve ter columns opcional', () => {
+        expectTypeOf<AuditExportParams>().toHaveProperty('columns');
+      });
+    });
+
+    describe('AuditExportFormat', () => {
+      it('deve suportar csv, json e pdf', () => {
+        expectTypeOf<'csv'>().toMatchTypeOf<AuditExportFormat>();
+        expectTypeOf<'json'>().toMatchTypeOf<AuditExportFormat>();
+        expectTypeOf<'pdf'>().toMatchTypeOf<AuditExportFormat>();
+      });
+    });
+
+    describe('AuditEventColumn', () => {
+      it('deve listar todas as colunas exportáveis', () => {
+        expectTypeOf<'id'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'action'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'resourceType'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'resourceId'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'userId'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'timestamp'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'status'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'detail'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'metadata'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'changes'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'correlationId'>().toMatchTypeOf<AuditEventColumn>();
+        expectTypeOf<'durationMs'>().toMatchTypeOf<AuditEventColumn>();
+      });
+    });
+
+    describe('AuditReportParams', () => {
+      it('deve ter período obrigatório e tipo de relatório', () => {
+        expectTypeOf<AuditReportParams>().toHaveProperty('dateFrom');
+        expectTypeOf<AuditReportParams>().toHaveProperty('dateTo');
+        expectTypeOf<AuditReportParams>().toHaveProperty('reportType');
+      });
+
+      it('deve ter groupBy e filters opcionais', () => {
+        expectTypeOf<AuditReportParams>().toHaveProperty('groupBy');
+        expectTypeOf<AuditReportParams>().toHaveProperty('filters');
+      });
+    });
+
+    describe('AuditReportType', () => {
+      it('deve incluir todos os tipos de relatório', () => {
+        expectTypeOf<'summary'>().toMatchTypeOf<AuditReportType>();
+        expectTypeOf<'detailed'>().toMatchTypeOf<AuditReportType>();
+        expectTypeOf<'compliance'>().toMatchTypeOf<AuditReportType>();
+        expectTypeOf<'user-activity'>().toMatchTypeOf<AuditReportType>();
+      });
+    });
+
+    describe('AuditReportGroupBy', () => {
+      it('deve incluir todas as opções de agrupamento', () => {
+        expectTypeOf<'action'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'resourceType'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'userId'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'status'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'day'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'week'>().toMatchTypeOf<AuditReportGroupBy>();
+        expectTypeOf<'month'>().toMatchTypeOf<AuditReportGroupBy>();
+      });
+    });
+
+    describe('AuditConfig', () => {
+      it('deve ter todos os campos de configuração', () => {
+        expectTypeOf<AuditConfig>().toHaveProperty('retentionDays');
+        expectTypeOf<AuditConfig>().toHaveProperty('enabledActions');
+        expectTypeOf<AuditConfig>().toHaveProperty('enabledResourceTypes');
+        expectTypeOf<AuditConfig>().toHaveProperty('maxPageSize');
+        expectTypeOf<AuditConfig>().toHaveProperty('captureUserAgent');
+        expectTypeOf<AuditConfig>().toHaveProperty('captureIpAddress');
+        expectTypeOf<AuditConfig>().toHaveProperty('captureChanges');
+        expectTypeOf<AuditConfig>().toHaveProperty('captureDuration');
+      });
+
+      it('enabledActions deve ser array de AuditEventAction', () => {
+        expectTypeOf<AuditConfig['enabledActions']>().toEqualTypeOf<AuditEventAction[]>();
+      });
+
+      it('enabledResourceTypes deve ser array de AuditResourceType', () => {
+        expectTypeOf<AuditConfig['enabledResourceTypes']>().toEqualTypeOf<AuditResourceType[]>();
+      });
+    });
+
+    describe('AUDIT_CONFIG_DEFAULTS', () => {
+      it('deve ter valores padrão corretos', () => {
+        expect(AUDIT_CONFIG_DEFAULTS.retentionDays).toBe(365);
+        expect(AUDIT_CONFIG_DEFAULTS.maxPageSize).toBe(1000);
+        expect(AUDIT_CONFIG_DEFAULTS.captureUserAgent).toBe(true);
+        expect(AUDIT_CONFIG_DEFAULTS.captureIpAddress).toBe(true);
+        expect(AUDIT_CONFIG_DEFAULTS.captureChanges).toBe(true);
+        expect(AUDIT_CONFIG_DEFAULTS.captureDuration).toBe(true);
+        expect(AUDIT_CONFIG_DEFAULTS.enabledActions).toEqual([]);
+        expect(AUDIT_CONFIG_DEFAULTS.enabledResourceTypes).toEqual([]);
+      });
+
+      it('deve ser readonly', () => {
+        expectTypeOf<typeof AUDIT_CONFIG_DEFAULTS>().toMatchTypeOf<Readonly<AuditConfig>>();
+      });
+    });
+
+    describe('AuditReportSummary', () => {
+      it('deve ter todos os campos do resumo', () => {
+        expectTypeOf<AuditReportSummary>().toHaveProperty('dateFrom');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('dateTo');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('totalEvents');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('byStatus');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('byResourceType');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('byAction');
+        expectTypeOf<AuditReportSummary>().toHaveProperty('topUsers');
+      });
+
+      it('topUsers deve ser array com userId e eventCount', () => {
+        type TopUser = AuditReportSummary['topUsers'][number];
+        expectTypeOf<TopUser>().toHaveProperty('userId');
+        expectTypeOf<TopUser>().toHaveProperty('eventCount');
+      });
     });
   });
 });

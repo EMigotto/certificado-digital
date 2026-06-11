@@ -31,8 +31,9 @@ export type {
   RevocationReasonOption,
 } from './certificate.js';
 
-// Audit log types
+// Audit log types (legados + C6 expandidos)
 export type {
+  // Tipos legados (compatibilidade)
   AuditAction,
   AuditResult,
   AuditChange,
@@ -41,7 +42,26 @@ export type {
   LifecycleAuditDetails,
   AuditFilterParams,
   TimelineAction,
+  // C6 — Trilha de Auditoria Expandida
+  AuditEventAction,
+  AuditResourceType,
+  AuditEventStatus,
+  AuditEvent,
+  AuditEventCreate,
+  AuditEventFilters,
+  AuditEventSortField,
+  AuditExportParams,
+  AuditExportFormat,
+  AuditEventColumn,
+  AuditReportParams,
+  AuditReportType,
+  AuditReportGroupBy,
+  AuditConfig,
+  AuditReportSummary,
 } from './audit.js';
+
+// C6 — Constantes de auditoria
+export { AUDIT_CONFIG_DEFAULTS } from './audit.js';
 
 // Filter / sort / pagination types
 export type {
