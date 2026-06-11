@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { config } from './config.js';
 import { registerOpenApi } from './plugins/openapi.js';
 import authPlugin from './plugins/auth.js';
+import auditContextPlugin from './plugins/auditContext.js';
 import { certificateRoutes } from './routes/certificates.js';
 import { importRoutes } from './routes/import.js';
 import { auditRoutes } from './routes/audit.js';
@@ -30,6 +31,10 @@ export async function buildServer() {
 
   // Register OpenAPI / Swagger documentation
   await registerOpenApi(server);
+
+  // Contexto de auditoria — deve ser registrado ANTES do auth
+  // para que requestId e IP estejam disponíveis no hook de autenticação
+  await server.register(auditContextPlugin);
 
   // Register token authentication middleware
   await server.register(authPlugin);
